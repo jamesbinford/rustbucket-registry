@@ -46,6 +46,9 @@ pub fn public() -> Vec<(&'static str, MethodRouter<Arc<AppState>>)> {
 		("/img/*path",         get(get_public_static_asset)),
 		("/js/*path",          get(get_public_static_asset)),
 		("/webfonts/*path",    get(get_public_static_asset)),
+		/// Begin Rustbucket APIs
+		("api/v1/register",    post(api::register_rustbucket)),
+		("api/v1/registrations/:id", get(api::get_registration_status)),
 	]
 }
 
