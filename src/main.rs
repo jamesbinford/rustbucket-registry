@@ -11,13 +11,15 @@
 
 //		Modules
 
+mod api;
 mod auth;
 mod config;
 mod handlers;
+mod migrations;
 mod routes;
 mod state;
 mod utility;
-mod api;
+
 //		Packages
 
 use crate::{
@@ -59,11 +61,19 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() -> Result<(), AppError> {
 	let config = load_config::<Config>()?;
 	let _guard = setup_logging(&config.logdir);
+
+	// Initialize the application state with a database connection
 	let state  = Arc::new(
 		AppState::new(config)
 			.await
 			.map_err(|e| AppError::Custom(format!("Database initialization error: {}", e)))?
 		);
+
+	// Run migrations
+	migrations::initialize_database(state.db())
+		.await
+		.map_err(|e| AppError::Custom(format!("Failed to run database migrations: {}", e)))?;
+
 	start_stats_processor(&state).await;
 	let app    = create_app::<_, User, User>(&state, protected(), public(), ApiDoc::openapi());
 	let server = create_server(app, &*state).await?;

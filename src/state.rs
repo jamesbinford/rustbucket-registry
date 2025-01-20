@@ -82,11 +82,18 @@ impl AppState {
 	/// 
 	/// The new application state.
 	/// 
-	pub fn new(config: Config) -> Self {
-		Self {
+	pub async fn new(config: Config) -> Result<Self, sqlx::Error> {
+		// Initialize database connection
+		let db = PgPoolOptions::new()
+			.max_connections(5)
+			.connect(&config.database_url)
+			.await?;
+
+		Ok(Self {
 			config,
+			db,
 			..Default::default()
-		}
+		})
 	}
 }
 
