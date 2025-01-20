@@ -31,6 +31,7 @@ use terracotta::{
 		state::{State as StatsState, StateProvider as StatsStateProvider},
 	},
 };
+use sqlx::postgres::{PgPool, PgPoolOptions};
 use tokio::sync::RwLock as AsyncRwLock;
 
 
@@ -63,6 +64,9 @@ pub struct AppState {
 	
 	/// The Tera template engine.
 	pub tera:        Tera,
+
+	/// Postgres pool
+	pub db: PgPool,
 }
 
 //󰭅		AppState																

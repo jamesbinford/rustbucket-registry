@@ -1,11 +1,3 @@
-//! Terracotta: Full example
-//! 
-//! Boilerplate webserver application based on Axum, with full functionality,
-//! i.e. all features enabled.
-//! 
-
-
-
 //		Global configuration
 
 //	Customisations of the standard linting configuration
@@ -67,7 +59,11 @@ static GLOBAL: Jemalloc = Jemalloc;
 async fn main() -> Result<(), AppError> {
 	let config = load_config::<Config>()?;
 	let _guard = setup_logging(&config.logdir);
-	let state  = Arc::new(AppState::new(config));
+	let state  = Arc::new(
+		AppState::new(config)
+			.await
+			.map_err(|e| AppError::Custom(format!("Database initialization error: {}", e)))?
+		);
 	start_stats_processor(&state).await;
 	let app    = create_app::<_, User, User>(&state, protected(), public(), ApiDoc::openapi());
 	let server = create_server(app, &*state).await?;

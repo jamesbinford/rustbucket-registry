@@ -48,6 +48,9 @@ pub struct Config {
 	
 	/// The configuration options for gathering and processing statistics.
 	pub stats:  StatsConfig,
+
+	/// Postgres Database URL
+	pub database_url: String,
 	
 	/// A list of users and their passwords.
 	#[default(HashMap::new())]
