@@ -11,11 +11,10 @@
 
 //		Modules
 
-mod api;
+pub mod api;
 mod auth;
 mod config;
 mod handlers;
-mod migrations;
 mod routes;
 mod state;
 mod utility;
@@ -52,8 +51,6 @@ use utoipa::OpenApi;
 #[global_allocator]
 static GLOBAL: Jemalloc = Jemalloc;
 
-
-
 //		Functions
 
 //		main																	
@@ -69,10 +66,11 @@ async fn main() -> Result<(), AppError> {
 			.map_err(|e| AppError::Custom(format!("Database initialization error: {}", e)))?
 		);
 
-	// Run migrations
-	migrations::initialize_database(state.db())
+	// Run migrations using the pool from state
+	sqlx::migrate!("./migrations")
+		.run(state.db())
 		.await
-		.map_err(|e| AppError::Custom(format!("Failed to run database migrations: {}", e)))?;
+		.map_err(|e| AppError::Custom(format!("Migration error: {}", e)))?;
 
 	start_stats_processor(&state).await;
 	let app    = create_app::<_, User, User>(&state, protected(), public(), ApiDoc::openapi());

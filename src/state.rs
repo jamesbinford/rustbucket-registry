@@ -95,6 +95,11 @@ impl AppState {
 			..Default::default()
 		})
 	}
+
+	// Add this method
+	pub fn db(&self) -> &PgPool {
+		&self.db
+	}
 }
 
 //󰭅		AppStateProvider														

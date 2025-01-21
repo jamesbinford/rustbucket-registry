@@ -1,3 +1,5 @@
+use crate::state::AppState;
+
 use axum::{
     extract::State,
     http::StatusCode,
@@ -5,6 +7,7 @@ use axum::{
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
 use sqlx::PgPool;
 use uuid::Uuid;
 use time::OffsetDateTime;
@@ -40,10 +43,11 @@ pub struct RegistrationStatus {
     admin_notes: Option<String>,
 }
 
-async fn register_rustbucket(
-    State(pool): State<PgPool>,
+pub async fn register_rustbucket(
+    State(state): State<Arc<AppState>>,
     Json(request): Json<RegistrationRequest>,
 ) -> Result<Json<RegistrationResponse>, (StatusCode, String)> {
+    let pool = state.db();
     // Validate token format
     if !validate_token(&request.token) {
         return Err((
@@ -87,10 +91,11 @@ async fn register_rustbucket(
     }
 }
 
-async fn get_registration_status(
-    State(pool): State<PgPool>,
-    registration_id: axum::extract::Path<Uuid>,
-) -> Result<Json<RegistrationStatus>, (StatusCode, String)> {
+pub async fn get_registration_status(
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RegistrationRequest>,
+) -> Result<Json<RegistrationResponse>, (StatusCode, String)> {
+    let pool = state.db();
     match sqlx::query_as!(
         RegistrationStatus,
         r#"
@@ -103,7 +108,7 @@ async fn get_registration_status(
         FROM rustbucket_registrations
         WHERE id = $1
         "#,
-        registration_id.0
+        registration_id
     )
         .fetch_optional(&pool)
         .await
@@ -124,13 +129,14 @@ async fn get_registration_status(
 }
 
 async fn approve_registration(
-    State(pool): State<PgPool>,
-    registration_id: axum::extract::Path<Uuid>,
-    Json(request): Json<ApprovalRequest>,
-) -> Result<StatusCode, (StatusCode, String)> {
+    State(state): State<Arc<AppState>>,
+    Json(request): Json<RegistrationRequest>,
+) -> Result<Json<RegistrationResponse>, (StatusCode, String)> {
+    let pool = state.db();
     // TODO: Add admin authentication middleware
 
-    match sqlx::query!(
+    match sqlx::query_as!(
+        RegistrationStatus,
         r#"
         UPDATE rustbucket_registrations
         SET
@@ -141,7 +147,7 @@ async fn approve_registration(
         "#,
         request.approved,
         request.admin_notes,
-        registration_id.0,
+        registration_id,
     )
         .execute(&pool)
         .await
@@ -163,7 +169,7 @@ async fn approve_registration(
     }
 }
 
-fn validate_token(token: &str) -> bool {
+pub fn validate_token(token: &str) -> bool {
     // TODO: Implement proper token validation
     // For now, just check if it's a non-empty string
     !token.is_empty()
