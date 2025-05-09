@@ -15,8 +15,14 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, include
 
+# Import views
+from rustbucketregistry.views.home import index, about
+
+# Main URL patterns
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path('', index, name='home'),
+    path('about/', about, name='about'),
 ]
