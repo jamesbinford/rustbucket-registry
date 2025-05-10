@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RustBucket Details - {{ bucket.name }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 15px;
+        }
+        .header-info {
+            flex: 1;
+        }
+        .bucket-name {
+            font-size: 24px;
+            margin: 0;
+            color: #333;
+        }
+        .status {
+            display: inline-block;
+            margin-top: 5px;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        .status-active {
+            background-color: #e8f5e9;
+            color: #2e7d32;
+        }
+        .status-inactive {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .status-maintenance {
+            background-color: #fff3e0;
+            color: #ef6c00;
+        }
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+        .detail-card {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .detail-title {
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        .detail-value {
+            font-size: 18px;
+            color: #333;
+        }
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            color: #2196F3;
+            text-decoration: none;
+        }
+        .back-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-info">
+                <h1 class="bucket-name">{{ bucket.name }}</h1>
+                <span class="status status-{{ bucket.status|lower }}">{{ bucket.status }}</span>
+            </div>
+            <div>
+                <div class="detail-title">ID</div>
+                <div class="detail-value">{{ bucket.id }}</div>
+            </div>
+        </div>
+        
+        <div class="details-grid">
+            <div class="detail-card">
+                <div class="detail-title">IP Address</div>
+                <div class="detail-value">{{ bucket.ip_address }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Operating System</div>
+                <div class="detail-value">{{ bucket.operating_system }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Last Log Dump</div>
+                <div class="detail-value">{{ bucket.last_log_dump }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Uptime</div>
+                <div class="detail-value">{{ bucket.uptime }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">CPU Usage</div>
+                <div class="detail-value">{{ bucket.cpu_usage }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Memory Usage</div>
+                <div class="detail-value">{{ bucket.memory_usage }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Disk Space</div>
+                <div class="detail-value">{{ bucket.disk_space }}</div>
+            </div>
+            
+            <div class="detail-card">
+                <div class="detail-title">Active Connections</div>
+                <div class="detail-value">{{ bucket.connections }}</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <a href="{% url 'home' %}" class="back-link">← Back to Buckets List</a> |
+            <a href="{% url 'logsinks' %}" class="back-link">View LogSinks</a>
+        </div>
+    </div>
+</body>
+</html>
