@@ -28,8 +28,14 @@ urlpatterns = [
     path('about/', about, name='about'),
     path('bucket/<str:bucket_id>/', detail, name='bucket_detail'),
     path('logsinks/', logsinks_view, name='logsinks'),
+    path('logsinks/<str:bucket_id>/', logsinks_view, name='logsinks_detail'),
+
+    # Internal API endpoints (for UI)
     path('api/logsinks/', logsink_api, name='logsinks_api'),
     path('api/logsinks/<str:bucket_id>/', logsink_api, name='logsinks_api_detail'),
     path('api/honeypot/', honeypot_api, name='honeypot_api'),
     path('api/honeypot/<str:bucket_id>/', honeypot_api, name='honeypot_api_detail'),
+
+    # External API endpoints (for Rustbuckets)
+    path('api/v1/', include('rustbucketregistry.api.urls')),
 ]
