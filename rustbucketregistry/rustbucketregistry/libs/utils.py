@@ -31,31 +31,3 @@ def format_registry_name(name):
     name = name.strip('-')
 
     return name
-
-
-def validate_registry_url(url):
-    """
-    Validate that a registry URL is properly formatted.
-
-    Args:
-        url (str): The URL to validate
-
-    Returns:
-        bool: True if valid
-
-    Raises:
-        ValidationError: If the URL is invalid
-    """
-    from django.core.exceptions import ValidationError
-
-    if not url:
-        raise ValidationError("URL cannot be empty")
-
-    if not (url.startswith('http://') or url.startswith('https://')):
-        raise ValidationError("URL must start with http:// or https://")
-
-    # Missing domain check
-    if url in ('http://', 'https://'):
-        raise ValidationError("URL must include a domain")
-
-    return True
