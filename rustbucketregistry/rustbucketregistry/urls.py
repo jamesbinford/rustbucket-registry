@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.contrib.auth import views as auth_views
+from django.contrib.auth.decorators import login_required
 
 # Import views
 from rustbucketregistry.views.home import index, about, detail
@@ -24,17 +26,21 @@ from rustbucketregistry.views.logsinks import logsinks_view, logsink_api, honeyp
 # Main URL patterns
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', index, name='home'),
-    path('about/', about, name='about'),
-    path('bucket/<str:bucket_id>/', detail, name='bucket_detail'),
-    path('logsinks/', logsinks_view, name='logsinks'),
-    path('logsinks/<str:bucket_id>/', logsinks_view, name='logsinks_detail'),
+    path('', login_required(index), name='home'),
+    path('about/', login_required(about), name='about'),
+    path('bucket/<str:bucket_id>/', login_required(detail), name='bucket_detail'),
+    path('logsinks/', login_required(logsinks_view), name='logsinks'),
+    path('logsinks/<str:bucket_id>/', login_required(logsinks_view), name='logsinks_detail'),
+
+    # Authentication views
+    path('login/', auth_views.LoginView.as_view(), name='login'),
+    path('logout/', auth_views.LogoutView.as_view(next_page='/login/'), name='logout'),
 
     # Internal API endpoints (for UI)
-    path('api/logsinks/', logsink_api, name='logsinks_api'),
-    path('api/logsinks/<str:bucket_id>/', logsink_api, name='logsinks_api_detail'),
-    path('api/honeypot/', honeypot_api, name='honeypot_api'),
-    path('api/honeypot/<str:bucket_id>/', honeypot_api, name='honeypot_api_detail'),
+    path('api/logsinks/', login_required(logsink_api), name='logsinks_api'),
+    path('api/logsinks/<str:bucket_id>/', login_required(logsink_api), name='logsinks_api_detail'),
+    path('api/honeypot/', login_required(honeypot_api), name='honeypot_api'),
+    path('api/honeypot/<str:bucket_id>/', login_required(honeypot_api), name='honeypot_api_detail'),
 
     # External API endpoints (for Rustbuckets)
     path('api/v1/', include('rustbucketregistry.api.urls')),
