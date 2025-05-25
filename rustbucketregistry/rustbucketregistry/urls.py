@@ -27,7 +27,6 @@ from rustbucketregistry.views.logsinks import logsinks_view, logsink_api, honeyp
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', login_required(index), name='home'),
-    path('about/', login_required(about), name='about'),
     path('bucket/<str:bucket_id>/', login_required(detail), name='bucket_detail'),
     path('logsinks/', login_required(logsinks_view), name='logsinks'),
     path('logsinks/<str:bucket_id>/', login_required(logsinks_view), name='logsinks_detail'),

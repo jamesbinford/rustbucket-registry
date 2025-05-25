@@ -28,6 +28,12 @@ class RustbucketAPITest(TestCase):
             'name': 'new-rustbucket',
             'ip_address': '192.168.1.2',
             'operating_system': 'Windows',
+            'cpu_usage': '25%',
+            'memory_usage': '40%',
+            'disk_space': '500GB',
+            'uptime': '24h',
+            'connections': '15',
+            'token': 'test-token-123',
             'test_skip_validation': True
         }
         response = self.client.post(
@@ -36,14 +42,22 @@ class RustbucketAPITest(TestCase):
             content_type='application/json'
         )
         
-        self.assertEqual(response.status_code, 201)
+        # Response should be 200 OK as per documentation
+        self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.content)
-        self.assertTrue('id' in response_data)
-        self.assertEqual(response_data['name'], 'new-rustbucket')
+        
+        # Verify response format matches documentation
+        self.assertEqual(response_data, {'status': 'success'})
         
         # Verify it was created in the database
         new_rustbucket = Rustbucket.objects.get(name='new-rustbucket')
         self.assertEqual(new_rustbucket.operating_system, 'Windows')
+        self.assertEqual(new_rustbucket.token, 'test-token-123')
+        self.assertEqual(new_rustbucket.cpu_usage, '25%')
+        self.assertEqual(new_rustbucket.memory_usage, '40%')
+        self.assertEqual(new_rustbucket.disk_space, '500GB')
+        self.assertEqual(new_rustbucket.uptime, '24h')
+        self.assertEqual(new_rustbucket.connections, '15')
     
     def test_register_rustbucket_validation(self):
         """Test validation in the register_rustbucket endpoint."""
@@ -57,12 +71,31 @@ class RustbucketAPITest(TestCase):
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data, {'status': 'error'})
+        
+        # Test with missing token field
+        data = {
+            'name': 'no-token-rustbucket',
+            'ip_address': '192.168.1.3',
+            'operating_system': 'Linux',
+            'test_skip_validation': True
+        }
+        response = self.client.post(
+            url, 
+            data=json.dumps(data),
+            content_type='application/json'
+        )
+        self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data, {'status': 'error'})
         
         # Force validation failure for test
         data = {
             'name': 'invalid-ip',
             'ip_address': 'not-an-ip',
             'operating_system': 'Linux',
+            'token': 'test-token-456',
             'test_force_validation': True
         }
         response = self.client.post(
@@ -71,6 +104,8 @@ class RustbucketAPITest(TestCase):
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 400)
+        response_data = json.loads(response.content)
+        self.assertEqual(response_data, {'status': 'error'})
     
     def test_get_rustbucket(self):
         """Test the get_rustbucket endpoint."""
@@ -223,11 +258,22 @@ class LogSinkAPITest(TestCase):
     def setUp(self):
         """Set up test data and client."""
         self.client = Client()
+        
+        # Create a test user for authentication
+        from django.contrib.auth.models import User
+        self.test_user = User.objects.create_user(
+            username='testuser',
+            password='testpass'
+        )
+        
+        # Create test rustbucket
         self.rustbucket = Rustbucket.objects.create(
             name="test-rustbucket",
             ip_address="192.168.1.1",
             operating_system="Linux"
         )
+        
+        # Create test logsink
         self.logsink = LogSink.objects.create(
             rustbucket=self.rustbucket,
             log_type="Error",
@@ -237,6 +283,9 @@ class LogSinkAPITest(TestCase):
     
     def test_logsink_api(self):
         """Test the logsink_api endpoint."""
+        # Login for authentication
+        self.client.login(username='testuser', password='testpass')
+        
         url = reverse('logsinks_api_detail', args=[self.rustbucket.id])
         
         # Test GET

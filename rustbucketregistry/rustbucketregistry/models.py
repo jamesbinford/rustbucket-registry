@@ -48,11 +48,12 @@ class Rustbucket(models.Model):
         ('Active', 'Active'),
         ('Inactive', 'Inactive'),
         ('Maintenance', 'Maintenance'),
+        ('Review', 'Review'),
     ]
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
-        default='Active',
+        default='Review',
         help_text="Current status of the rustbucket"
     )
 
@@ -87,18 +88,25 @@ class Rustbucket(models.Model):
         blank=True,
         help_text="Uptime of the rustbucket"
     )
-    connections = models.IntegerField(
+    connections = models.CharField(
+        max_length=20,
         null=True,
         blank=True,
         help_text="Number of active connections"
     )
 
-    # Registration information
+    # Registration information with token as per API documentation
+    token = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="Token provided by the Rustbucket for registration"
+    )
     api_key = models.UUIDField(
         default=uuid.uuid4,
         unique=True,
         editable=False,
-        help_text="API key for rustbucket authentication"
+        help_text="API key for rustbucket authentication (for backward compatibility)"
     )
     registered_at = models.DateTimeField(
         default=timezone.now,

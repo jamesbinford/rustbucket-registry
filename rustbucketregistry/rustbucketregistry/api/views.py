@@ -2,58 +2,62 @@
 API views for the RustBucket Registry application.
 """
 import json
-from django.http import JsonResponse
+import re
+from django.http import JsonResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
+import requests
+import logging
+import boto3
+import os
+from io import BytesIO
+from django.conf import settings
 
 from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+
+logger = logging.getLogger(__name__)
 
 
 @csrf_exempt
 @require_POST
 def register_rustbucket(request):
     """
-    Register a new rustbucket or update an existing one.
+    Register a new rustbucket.
     
-    Expected JSON payload:
+    Expected JSON payload as per API documentation:
     {
-        "name": "required",
-        "ip_address": "required",
-        "operating_system": "required",
-        "api_key": "optional - if provided, updates existing rustbucket"
+        "name": "string",
+        "ip_address": "string",
+        "operating_system": "string",
+        "cpu_usage": "string",
+        "memory_usage": "string",
+        "disk_space": "string",
+        "uptime": "string",
+        "connections": "string",
+        "token": "string"
     }
     
     Returns:
     {
-        "success": true/false,
-        "message": "status message",
-        "rustbucket": {
-            "id": "rustbucket ID",
-            "api_key": "API key for authentication",
-            "name": "rustbucket name",
-            "ip_address": "IP address",
-            ...
-        }
+        "status": "string"
     }
     """
     try:
         data = json.loads(request.body)
         
-        # Required fields
         # For test cases
         if 'test_force_validation' in data and data.get('test_force_validation'):
             return JsonResponse({
-                'success': False,
-                'message': "Validation failed for test"
+                'status': "error"
             }, status=400)
 
-        required_fields = ['name', 'ip_address', 'operating_system']
+        # Validate required fields
+        required_fields = ['name', 'ip_address', 'operating_system', 'token']
         for field in required_fields:
             if field not in data:
                 return JsonResponse({
-                    'success': False,
-                    'message': f"Missing required field: {field}"
+                    'status': "error"
                 }, status=400)
 
         # Basic IP validation - only in non-test environment
@@ -61,83 +65,312 @@ def register_rustbucket(request):
             ip_address = data.get('ip_address')
             if not ip_address or not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_address):
                 return JsonResponse({
-                    'success': False,
-                    'message': "Invalid IP address format"
+                    'status': "error"
                 }, status=400)
-        
-        # Check if this is an update (api_key provided)
-        if 'api_key' in data:
-            try:
-                rustbucket = Rustbucket.objects.get(api_key=data['api_key'])
-                # Update fields
-                rustbucket.name = data['name']
-                rustbucket.ip_address = data['ip_address']
-                rustbucket.operating_system = data['operating_system']
-                rustbucket.last_seen = timezone.now()
-                
-                # Optional fields
-                optional_fields = ['cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections', 'status']
-                for field in optional_fields:
-                    if field in data:
-                        setattr(rustbucket, field, data[field])
-                
-                rustbucket.save()
-                
-                return JsonResponse({
-                    'success': True,
-                    'message': "Rustbucket updated successfully",
-                    'rustbucket': {
-                        'id': rustbucket.id,
-                        'api_key': rustbucket.api_key,
-                        'name': rustbucket.name,
-                        'ip_address': rustbucket.ip_address,
-                        'operating_system': rustbucket.operating_system,
-                        'status': rustbucket.status,
-                        'registered_at': rustbucket.registered_at.isoformat(),
-                        'last_seen': rustbucket.last_seen.isoformat()
-                    }
-                })
-            except Rustbucket.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'message': "Invalid API key"
-                }, status=401)
         
         # Create new rustbucket
         rustbucket = Rustbucket(
             name=data['name'],
             ip_address=data['ip_address'],
-            operating_system=data['operating_system']
+            operating_system=data['operating_system'],
+            token=data['token']  # Store the token as per API documentation
         )
         
         # Optional fields
-        optional_fields = ['cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections', 'status']
+        optional_fields = ['cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections']
         for field in optional_fields:
             if field in data:
                 setattr(rustbucket, field, data[field])
         
+        # Save the rustbucket to generate an ID and API key
         rustbucket.save()
         
-        # Return direct response with rustbucket data for test compatibility
+        # Return response according to API documentation
         return JsonResponse({
-            'id': rustbucket.id,
-            'api_key': str(rustbucket.api_key),
-            'name': rustbucket.name,
-            'ip_address': rustbucket.ip_address,
-            'operating_system': rustbucket.operating_system,
-            'status': rustbucket.status,
-            'registered_at': rustbucket.registered_at.isoformat(),
-            'last_seen': rustbucket.last_seen.isoformat()
-        }, status=201)
+            'status': "success"
+        }, status=200)
     
     except json.JSONDecodeError:
         return JsonResponse({
-            'success': False,
-            'message': "Invalid JSON payload"
+            'status': "error"
         }, status=400)
     except Exception as e:
         return JsonResponse({
-            'success': False,
+            'status': "error"
+        }, status=500)
+
+
+def pull_bucket_updates():
+    """
+    Pull-based update function to update rustbucket information.
+    
+    This function is meant to be called by a scheduler or manually.
+    It iterates through all active rustbuckets and pulls their latest
+    information from their update endpoint.
+    
+    Returns:
+        dict: A summary of the update process
+    """
+    updated_count = 0
+    failed_count = 0
+    updates = []
+    
+    # Get all active rustbuckets
+    rustbuckets = Rustbucket.objects.filter(status='Active')
+    
+    for rustbucket in rustbuckets:
+        try:
+            # Construct the update URL using the rustbucket's IP address
+            update_url = f"http://{rustbucket.ip_address}/update_bucket"
+            
+            # Add the token for authentication
+            headers = {
+                'Authorization': f"Token {rustbucket.token}"
+            }
+            
+            # Request timeout after 10 seconds
+            response = requests.get(update_url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                data = response.json()
+                
+                # Update the rustbucket with the new information
+                update_data = {}
+                fields_to_update = ['name', 'operating_system', 'cpu_usage', 
+                                   'memory_usage', 'disk_space', 'uptime', 'connections']
+                
+                for field in fields_to_update:
+                    if field in data and getattr(rustbucket, field) != data[field]:
+                        update_data[field] = data[field]
+                
+                if update_data:
+                    # Update the rustbucket fields
+                    for field, value in update_data.items():
+                        setattr(rustbucket, field, value)
+                    
+                    # Update the last_seen timestamp
+                    rustbucket.last_seen = timezone.now()
+                    rustbucket.save()
+                    
+                    # Add to the updates list
+                    updates.append({
+                        'id': rustbucket.id,
+                        'name': rustbucket.name,
+                        'updated_fields': list(update_data.keys())
+                    })
+                    
+                    updated_count += 1
+                else:
+                    # No changes needed
+                    rustbucket.last_seen = timezone.now()
+                    rustbucket.save()
+            else:
+                # Failed to get update
+                logger.warning(f"Failed to update rustbucket {rustbucket.id}: HTTP {response.status_code}")
+                failed_count += 1
+        
+        except requests.RequestException as e:
+            # Connection error
+            logger.error(f"Error updating rustbucket {rustbucket.id}: {str(e)}")
+            failed_count += 1
+    
+    # Return summary
+    return {
+        'status': 'success',
+        'total': len(rustbuckets),
+        'updated': updated_count,
+        'failed': failed_count,
+        'updates': updates
+    }
+
+
+@csrf_exempt
+@require_GET
+def update_buckets(request):
+    """
+    Endpoint to trigger the pull-based update process.
+    
+    This endpoint is protected and requires admin authentication.
+    
+    Returns:
+        JsonResponse: JSON response with update summary
+    """
+    # Only authenticated admin users can trigger updates
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Authentication required'
+        }, status=401)
+    
+    try:
+        # Call the pull_bucket_updates function
+        result = pull_bucket_updates()
+        return JsonResponse(result)
+    except Exception as e:
+        logger.error(f"Error in update_buckets: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': f"Error: {str(e)}"
+        }, status=500)
+
+
+def extract_logs_from_buckets():
+    """
+    Pull-based log extraction function to extract logs from rustbuckets.
+    
+    This function is meant to be called by a scheduler or manually.
+    It iterates through all active rustbuckets and pulls their logs from
+    their extract_logs endpoint. The logs are then stored in an S3 bucket.
+    
+    Returns:
+        dict: A summary of the extraction process
+    """
+    extracted_count = 0
+    failed_count = 0
+    log_data = []
+    
+    # Get all active rustbuckets
+    rustbuckets = Rustbucket.objects.filter(status='Active')
+    
+    # Initialize S3 client
+    s3_client = boto3.client(
+        's3',
+        region_name=settings.AWS_S3_REGION,
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+    ) if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY else None
+    
+    for rustbucket in rustbuckets:
+        try:
+            # Construct the log extraction URL using the rustbucket's IP address
+            extract_url = f"http://{rustbucket.ip_address}/extract_logs"
+            
+            # Add the token for authentication
+            headers = {
+                'Authorization': f"Token {rustbucket.token}"
+            }
+            
+            # Request timeout after 30 seconds (logs might be large)
+            response = requests.get(extract_url, headers=headers, timeout=30, stream=True)
+            
+            if response.status_code == 200:
+                # Get the content type to determine if it's a file or JSON
+                content_type = response.headers.get('Content-Type', '')
+                
+                # Generate a timestamped filename
+                timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+                file_name = f"{rustbucket.id}_{timestamp}_logs.txt"
+                
+                # Store the logs in S3 bucket if credentials are available
+                if s3_client:
+                    try:
+                        # Upload the file to S3
+                        s3_client.upload_fileobj(
+                            BytesIO(response.content),
+                            settings.AWS_S3_BUCKET_NAME,
+                            file_name
+                        )
+                        
+                        # Update the rustbucket's last_log_dump
+                        rustbucket.last_log_dump = timezone.now()
+                        rustbucket.save()
+                        
+                        # Calculate the log size in MB
+                        log_size = len(response.content) / (1024 * 1024)  # Convert bytes to MB
+                        log_size_str = f"{log_size:.2f} MB"
+                        
+                        # Add to the log_data list
+                        log_data.append({
+                            'id': rustbucket.id,
+                            'name': rustbucket.name,
+                            'file_name': file_name,
+                            'log_size': log_size_str
+                        })
+                        
+                        extracted_count += 1
+                        
+                        # Create or update a log sink for this extraction
+                        log_sink, created = LogSink.objects.get_or_create(
+                            rustbucket=rustbucket,
+                            log_type='Log Extraction',
+                            defaults={
+                                'size': log_size_str,
+                                'status': 'Active',
+                                'alert_level': 'low'
+                            }
+                        )
+                        
+                        if not created:
+                            log_sink.size = log_size_str
+                            log_sink.last_update = timezone.now()
+                            log_sink.save()
+                        
+                    except Exception as e:
+                        # S3 upload error
+                        logger.error(f"Error uploading logs to S3 for rustbucket {rustbucket.id}: {str(e)}")
+                        failed_count += 1
+                else:
+                    # No S3 credentials, just log success and count
+                    logger.info(f"Logs extracted from rustbucket {rustbucket.id} but not stored (no S3 credentials)")
+                    
+                    # Update the rustbucket's last_log_dump
+                    rustbucket.last_log_dump = timezone.now()
+                    rustbucket.save()
+                    
+                    # Add to the log_data list
+                    log_data.append({
+                        'id': rustbucket.id,
+                        'name': rustbucket.name,
+                        'log_size': f"{len(response.content) / (1024 * 1024):.2f} MB"
+                    })
+                    
+                    extracted_count += 1
+            else:
+                # Failed to get logs
+                logger.warning(f"Failed to extract logs from rustbucket {rustbucket.id}: HTTP {response.status_code}")
+                failed_count += 1
+        
+        except requests.RequestException as e:
+            # Connection error
+            logger.error(f"Error extracting logs from rustbucket {rustbucket.id}: {str(e)}")
+            failed_count += 1
+    
+    # Return summary
+    return {
+        'status': 'success',
+        'total': len(rustbuckets),
+        'extracted': extracted_count,
+        'failed': failed_count,
+        'logs': log_data
+    }
+
+
+@csrf_exempt
+@require_GET
+def extract_logs(request):
+    """
+    Endpoint to trigger the pull-based log extraction process.
+    
+    This endpoint is protected and requires admin authentication.
+    
+    Returns:
+        JsonResponse: JSON response with extraction summary
+    """
+    # Only authenticated admin users can trigger log extraction
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Authentication required'
+        }, status=401)
+    
+    try:
+        # Call the extract_logs_from_buckets function
+        result = extract_logs_from_buckets()
+        return JsonResponse(result)
+    except Exception as e:
+        logger.error(f"Error in extract_logs: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
             'message': f"Error: {str(e)}"
         }, status=500)
 

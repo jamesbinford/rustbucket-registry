@@ -133,3 +133,13 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # Authentication settings
 LOGIN_URL = '/login/'
 LOGIN_REDIRECT_URL = '/'
+
+# AWS S3 bucket configuration for log storage
+AWS_S3_BUCKET_NAME = os.getenv('AWS_S3_BUCKET_NAME', 'rustbucket-logs')
+AWS_S3_REGION = os.getenv('AWS_S3_REGION', 'us-east-1')
+AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', '')
+AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', '')
+
+# Log processing configuration
+LOG_PARSING_INTERVAL_HOURS = 1
+LOG_ANALYSIS_INTERVAL_HOURS = 4
