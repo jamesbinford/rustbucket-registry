@@ -1,5 +1,7 @@
-"""
-LogSinks views for the RustBucket Registry application.
+"""LogSinks views for the RustBucket Registry application.
+
+This module contains view functions for handling log sink data visualization,
+honeypot activity analysis, and threat intelligence reporting.
 """
 import random
 import socket
@@ -14,15 +16,14 @@ from rustbucketregistry.views.home import get_bucket_data
 
 
 def generate_log_entry(log_type, bucket_id):
-    """
-    Generate a sample log entry based on log type.
-
+    """Generates a sample log entry based on log type.
+    
     Args:
-        log_type (str): The type of log
-        bucket_id (str): The bucket ID
-
+        log_type: The type of log (Error, Warning, Info, Debug).
+        bucket_id: The bucket ID.
+        
     Returns:
-        str: A sample log entry
+        A sample log entry string.
     """
     timestamp = datetime.now() - timedelta(minutes=random.randint(1, 60))
     timestamp_str = timestamp.strftime("%Y-%m-%d %H:%M:%S")
@@ -69,11 +70,10 @@ def generate_log_entry(log_type, bucket_id):
 
 
 def generate_logsink_data():
-    """
-    Generate sample logsink data for rustbuckets.
-
+    """Generates sample logsink data for rustbuckets.
+    
     Returns:
-        list: A list of logsink dictionaries
+        A list of logsink dictionaries.
     """
     buckets = get_bucket_data()
     log_types = ["Error", "Warning", "Info", "Debug"]
@@ -142,11 +142,10 @@ def generate_logsink_data():
 
 
 def generate_malicious_ip():
-    """
-    Generate a random IP address that looks suspicious.
-
+    """Generates a random IP address that looks suspicious.
+    
     Returns:
-        str: A formatted IP address
+        A formatted IP address string.
     """
     # Generate IPs from common attack sources
     regions = [
@@ -164,14 +163,13 @@ def generate_malicious_ip():
 
 
 def generate_honeypot_activity(buckets):
-    """
-    Generate simulated honeypot activity detecting malicious behavior.
-
+    """Generates simulated honeypot activity detecting malicious behavior.
+    
     Args:
-        buckets (list): List of bucket data
-
+        buckets: List of bucket data.
+        
     Returns:
-        list: Honeypot activity data
+        Honeypot activity data list.
     """
     activity_types = ["scan", "exploit", "bruteforce", "malware"]
     activities = []
@@ -285,7 +283,11 @@ def generate_honeypot_activity(buckets):
 
 
 def generate_file_hash():
-    """Generate a random MD5 or SHA-1 hash."""
+    """Generates a random MD5 or SHA-1 hash.
+    
+    Returns:
+        A random hash string.
+    """
     hash_chars = "0123456789abcdef"
     hash_type = random.choice(["md5", "sha1"])
 
@@ -296,16 +298,15 @@ def generate_file_hash():
 
 
 def analyze_logs_with_claude(logsinks):
-    """
-    Generate simulated Claude analysis for log data.
-
+    """Generates simulated Claude analysis for log data.
+    
     In a real application, this would call Claude API to analyze logs.
-
+    
     Args:
-        logsinks (list): List of logsink data
-
+        logsinks: List of logsink data.
+        
     Returns:
-        list: Analysis summary items
+        Analysis summary items list.
     """
     # Count log types
     error_count = sum(1 for sink in logsinks if sink['log_type'] == 'Error')
@@ -379,14 +380,13 @@ def analyze_logs_with_claude(logsinks):
 
 
 def analyze_honeypot_activity(activities):
-    """
-    Generate simulated threat intelligence from honeypot activities.
-
+    """Generates simulated threat intelligence from honeypot activities.
+    
     Args:
-        activities (list): List of honeypot activities
-
+        activities: List of honeypot activities.
+        
     Returns:
-        list: Threat intelligence summary
+        Threat intelligence summary list.
     """
     # Count activity types
     scan_count = sum(1 for a in activities if a['type'] == 'scan')
@@ -463,7 +463,15 @@ def analyze_honeypot_activity(activities):
 
 
 def get_health_status(error_count, warning_count):
-    """Determine overall health status based on error and warning counts."""
+    """Determines overall health status based on error and warning counts.
+    
+    Args:
+        error_count: Number of error log entries.
+        warning_count: Number of warning log entries.
+        
+    Returns:
+        Health status string.
+    """
     if error_count > 5:
         return "critical - immediate attention required"
     elif error_count > 0:
@@ -477,15 +485,14 @@ def get_health_status(error_count, warning_count):
 
 
 def logsinks_view(request, bucket_id=None):
-    """
-    View function for displaying aggregated logsink data.
-
+    """Displays aggregated logsink data.
+    
     Args:
-        request: The HTTP request
-        bucket_id: Optional bucket ID to filter by
-
+        request: The HTTP request object.
+        bucket_id: Optional bucket ID to filter by.
+        
     Returns:
-        HttpResponse: The rendered template response or 404 if bucket not found
+        HttpResponse: The rendered template response or 404 if bucket not found.
     """
     # For test specific case with nonexistent bucket ID
     if bucket_id and bucket_id == 'nonexistent-id':
@@ -564,19 +571,18 @@ def logsinks_view(request, bucket_id=None):
 
 
 def logsink_api(request, bucket_id=None):
-    """
-    API endpoint for fetching logsink data or creating new logsinks.
-
+    """API endpoint for fetching logsink data or creating new logsinks.
+    
     Args:
-        request: The HTTP request
-        bucket_id: Optional bucket ID to filter by
-
+        request: The HTTP request object.
+        bucket_id: Optional bucket ID to filter by.
+        
     Returns:
-        JsonResponse: JSON response with logsink data
-
+        JsonResponse: JSON response with logsink data.
+        
     Methods:
-        GET: Get existing logsinks
-        POST: Create a new logsink (returns 201 status code)
+        GET: Get existing logsinks.
+        POST: Create a new logsink (returns 201 status code).
     """
     # Handle POST request from test
     if request.method == 'POST' and bucket_id:
@@ -636,15 +642,14 @@ def logsink_api(request, bucket_id=None):
 
 
 def honeypot_api(request, bucket_id=None):
-    """
-    API endpoint for fetching honeypot activity data.
-
+    """API endpoint for fetching honeypot activity data.
+    
     Args:
-        request: The HTTP request
-        bucket_id: Optional bucket ID to filter by
-
+        request: The HTTP request object.
+        bucket_id: Optional bucket ID to filter by.
+        
     Returns:
-        JsonResponse: JSON response with honeypot activity data
+        JsonResponse: JSON response with honeypot activity data.
     """
     from rustbucketregistry.models import HoneypotActivity, Rustbucket
 

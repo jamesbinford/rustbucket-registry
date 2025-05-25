@@ -1,5 +1,7 @@
-"""
-API views for the RustBucket Registry application.
+"""API views for the RustBucket Registry application.
+
+This module contains API endpoints for rustbucket registration, updates,
+log extraction, and honeypot activity reporting.
 """
 import json
 import re
@@ -22,8 +24,7 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 @require_POST
 def register_rustbucket(request):
-    """
-    Register a new rustbucket.
+    """Registers a new rustbucket.
     
     Expected JSON payload as per API documentation:
     {
@@ -38,10 +39,11 @@ def register_rustbucket(request):
         "token": "string"
     }
     
+    Args:
+        request: The HTTP POST request object.
+        
     Returns:
-    {
-        "status": "string"
-    }
+        JsonResponse: A response with status information.
     """
     try:
         data = json.loads(request.body)
@@ -101,15 +103,14 @@ def register_rustbucket(request):
 
 
 def pull_bucket_updates():
-    """
-    Pull-based update function to update rustbucket information.
+    """Pull-based update function to update rustbucket information.
     
     This function is meant to be called by a scheduler or manually.
     It iterates through all active rustbuckets and pulls their latest
     information from their update endpoint.
     
     Returns:
-        dict: A summary of the update process
+        A dictionary containing a summary of the update process.
     """
     updated_count = 0
     failed_count = 0
@@ -187,13 +188,15 @@ def pull_bucket_updates():
 @csrf_exempt
 @require_GET
 def update_buckets(request):
-    """
-    Endpoint to trigger the pull-based update process.
+    """Triggers the pull-based update process.
     
     This endpoint is protected and requires admin authentication.
     
+    Args:
+        request: The HTTP GET request object.
+        
     Returns:
-        JsonResponse: JSON response with update summary
+        JsonResponse: JSON response with update summary.
     """
     # Only authenticated admin users can trigger updates
     if not request.user.is_authenticated or not request.user.is_staff:
@@ -215,15 +218,14 @@ def update_buckets(request):
 
 
 def extract_logs_from_buckets():
-    """
-    Pull-based log extraction function to extract logs from rustbuckets.
+    """Pull-based log extraction function to extract logs from rustbuckets.
     
     This function is meant to be called by a scheduler or manually.
     It iterates through all active rustbuckets and pulls their logs from
     their extract_logs endpoint. The logs are then stored in an S3 bucket.
     
     Returns:
-        dict: A summary of the extraction process
+        A dictionary containing a summary of the extraction process.
     """
     extracted_count = 0
     failed_count = 0
@@ -348,13 +350,15 @@ def extract_logs_from_buckets():
 @csrf_exempt
 @require_GET
 def extract_logs(request):
-    """
-    Endpoint to trigger the pull-based log extraction process.
+    """Triggers the pull-based log extraction process.
     
     This endpoint is protected and requires admin authentication.
     
+    Args:
+        request: The HTTP GET request object.
+        
     Returns:
-        JsonResponse: JSON response with extraction summary
+        JsonResponse: JSON response with extraction summary.
     """
     # Only authenticated admin users can trigger log extraction
     if not request.user.is_authenticated or not request.user.is_staff:
@@ -377,11 +381,10 @@ def extract_logs(request):
 
 @require_GET
 def get_rustbucket(request, rustbucket_id=None, api_key=None):
-    """
-    Get rustbucket information.
+    """Gets rustbucket information.
     
     Args:
-        request: The HTTP request.
+        request: The HTTP request object.
         rustbucket_id: Optional rustbucket ID.
         api_key: Optional API key.
         
@@ -454,9 +457,8 @@ def get_rustbucket(request, rustbucket_id=None, api_key=None):
 @csrf_exempt
 @require_POST
 def submit_logs(request):
-    """
-    Submit logs for a rustbucket.
-
+    """Submits logs for a rustbucket.
+    
     Expected JSON payload:
     {
         "api_key": "required",
@@ -469,13 +471,12 @@ def submit_logs(request):
             ...
         ]
     }
-
+    
+    Args:
+        request: The HTTP POST request object.
+        
     Returns:
-    {
-        "success": true/false,
-        "message": "status message",
-        "logs_received": number of logs received
-    }
+        JsonResponse: A response containing success status, message, and logs_received count.
     """
     try:
         data = json.loads(request.body)
@@ -595,8 +596,7 @@ def submit_logs(request):
 @csrf_exempt
 @require_POST
 def report_honeypot_activity(request):
-    """
-    Report honeypot activity for a rustbucket.
+    """Reports honeypot activity for a rustbucket.
     
     Expected JSON payload:
     {
@@ -609,12 +609,11 @@ def report_honeypot_activity(request):
         }
     }
     
+    Args:
+        request: The HTTP POST request object.
+        
     Returns:
-    {
-        "success": true/false,
-        "message": "status message",
-        "activity_id": ID of the created activity
-    }
+        JsonResponse: A response containing success status, message, and activity_id.
     """
     try:
         data = json.loads(request.body)

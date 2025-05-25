@@ -1,5 +1,7 @@
-"""
-Tests for pull-based update functionality.
+"""Tests for pull-based updates functionality.
+
+This module contains unit tests for testing pull-based update features including
+rustbucket status updates, health checks, and synchronization.
 """
 from unittest.mock import patch, MagicMock
 from django.test import TestCase, Client

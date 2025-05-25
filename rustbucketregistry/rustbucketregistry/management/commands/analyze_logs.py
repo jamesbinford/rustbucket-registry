@@ -1,5 +1,7 @@
-"""
-Management command to analyze logs using Claude.
+"""Management command to analyze logs using Claude.
+
+This module provides a Django management command for analyzing logs
+using Claude AI and storing the analysis results in the database.
 """
 import logging
 import json
@@ -16,11 +18,15 @@ from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, Hone
 logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
+    """Django management command for analyzing logs using Claude."""
     help = 'Analyze logs using Claude and store analysis results in the database'
     
     def handle(self, *args, **options):
-        """
-        Execute the log analysis process.
+        """Executes the log analysis process.
+        
+        Args:
+            *args: Variable length argument list.
+            **options: Arbitrary keyword arguments.
         """
         self.stdout.write(self.style.SUCCESS('Starting log analysis process...'))
         

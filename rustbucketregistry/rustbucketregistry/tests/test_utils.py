@@ -1,5 +1,7 @@
-"""
-Tests for utility functions in the RustBucket Registry application.
+"""Tests for utility functions in the RustBucket Registry application.
+
+This module contains unit tests for testing utility functions including
+registry name formatting and other helper functions.
 """
 from django.test import TestCase
 from rustbucketregistry.libs.utils import format_registry_name

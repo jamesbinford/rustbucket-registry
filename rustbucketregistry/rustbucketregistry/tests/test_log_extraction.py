@@ -1,5 +1,7 @@
-"""
-Tests for log extraction functionality.
+"""Tests for log extraction functionality.
+
+This module contains unit tests for testing log extraction features including
+log collection, S3 upload, and extraction processing.
 """
 from unittest.mock import patch, MagicMock, mock_open
 from django.test import TestCase, Client

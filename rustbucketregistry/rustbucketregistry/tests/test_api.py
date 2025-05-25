@@ -1,5 +1,7 @@
-"""
-Tests for RustBucketRegistry API endpoints.
+"""Tests for RustBucketRegistry API endpoints.
+
+This module contains unit tests for testing API endpoints including
+rustbucket registration, log submission, and honeypot activity reporting.
 """
 from django.test import TestCase, Client
 from django.urls import reverse
@@ -7,15 +9,16 @@ from django.utils import timezone
 import json
 
 from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+from rustbucketregistry.tests.fixtures import create_test_rustbucket
 
 
 class RustbucketAPITest(TestCase):
     """Tests for Rustbucket API endpoints."""
 
     def setUp(self):
-        """Set up test data and client."""
+        """Sets up test data and client."""
         self.client = Client()
-        self.rustbucket = Rustbucket.objects.create(
+        self.rustbucket = create_test_rustbucket(
             name="test-rustbucket",
             ip_address="192.168.1.1",
             operating_system="Linux"

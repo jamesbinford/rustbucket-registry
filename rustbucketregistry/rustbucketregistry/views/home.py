@@ -1,5 +1,8 @@
-"""
-Home views for the RustBucket Registry application.
+"""Home views for the RustBucket Registry application.
+
+This module contains view functions for handling the main pages of the
+RustBucket Registry application, including the home page, detail pages,
+and about page.
 """
 from django.http import HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404
@@ -9,26 +12,25 @@ from rustbucketregistry.models import Rustbucket
 
 
 def get_bucket_data():
-    """
-    Get actual bucket data from the database.
+    """Gets actual bucket data from the database.
+    
     Falls back to empty list if no buckets exist.
-
+    
     Returns:
-        list: A list of Rustbucket objects
+        A list of Rustbucket objects.
     """
     # Get all rustbuckets from the database
     return list(Rustbucket.objects.all())
 
 
 def index(request):
-    """
-    Home page view.
-
+    """Renders the home page view.
+    
     Args:
-        request: The HTTP request
-
+        request: The HTTP request object.
+        
     Returns:
-        HttpResponse: The HTTP response
+        HttpResponse: The rendered home page.
     """
     buckets = get_bucket_data()
 
@@ -40,15 +42,14 @@ def index(request):
 
 
 def detail(request, bucket_id):
-    """
-    Detail view for a specific rustbucket.
-
+    """Renders the detail view for a specific rustbucket.
+    
     Args:
-        request: The HTTP request
-        bucket_id: The ID of the bucket to display
-
+        request: The HTTP request object.
+        bucket_id: The ID of the bucket to display.
+        
     Returns:
-        HttpResponse: The HTTP response
+        HttpResponse: The rendered detail page.
     """
     bucket = get_object_or_404(Rustbucket, id=bucket_id)
 
@@ -60,14 +61,13 @@ def detail(request, bucket_id):
 
 
 def about(request):
-    """
-    About page view.
-
+    """Renders the about page view.
+    
     Args:
-        request: The HTTP request
-
+        request: The HTTP request object.
+        
     Returns:
-        HttpResponse: The HTTP response
+        HttpResponse: The rendered about page.
     """
     registry_name = format_registry_name("Rust Bucket Registry")
     context = {

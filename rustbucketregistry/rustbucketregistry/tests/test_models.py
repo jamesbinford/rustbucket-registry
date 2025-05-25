@@ -1,5 +1,7 @@
-"""
-Tests for RustBucketRegistry models.
+"""Tests for RustBucketRegistry models.
+
+This module contains unit tests for testing Django model classes including
+Rustbucket, LogSink, LogEntry, Alert, and HoneypotActivity models.
 """
 import json
 from django.test import TestCase

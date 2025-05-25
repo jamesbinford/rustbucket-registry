@@ -1,16 +1,17 @@
-"""
-Utility functions for the RustBucket Registry application.
+"""Utility functions for the RustBucket Registry application.
+
+This module contains utility functions for formatting and processing
+data used throughout the RustBucket Registry application.
 """
 
 def format_registry_name(name):
-    """
-    Format a registry name according to application standards.
-
+    """Formats a registry name according to application standards.
+    
     Args:
-        name (str): The registry name to format
-
+        name: The registry name to format.
+        
     Returns:
-        str: The formatted registry name
+        The formatted registry name.
     """
     import re
     # Convert to lowercase

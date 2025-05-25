@@ -1,5 +1,7 @@
-"""
-Tests for log analysis functionality.
+"""Tests for log analysis functionality.
+
+This module contains unit tests for testing log analysis features including
+log parsing, threat detection, and analytics processing.
 """
 from unittest.mock import patch, MagicMock
 from io import StringIO

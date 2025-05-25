@@ -90,3 +90,7 @@ This is a standard Django project with the following structure:
 ## Database Configuration
 
 The project is configured to use MySQL. The connection parameters are loaded from environment variables in `settings.py`.
+
+## Style Guidelines
+- Use Google's Python Style Guide (https://google.github.io/styleguide/pyguide.html) for Python code.
+- Separate test fixtures from business logic wherever possible. 

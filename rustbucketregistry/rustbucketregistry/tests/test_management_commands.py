@@ -1,5 +1,7 @@
-"""
-Tests for management commands.
+"""Tests for Django management commands.
+
+This module contains unit tests for testing Django management commands including
+log analysis, log parsing, and other administrative commands.
 """
 from unittest.mock import patch, MagicMock, call
 from io import StringIO

@@ -1,5 +1,7 @@
-"""
-Management command to parse logs from S3 and store them in the database.
+"""Management command to parse logs from S3 and store them in the database.
+
+This module provides a Django management command for parsing log files
+from S3 storage and storing the parsed data in the database.
 """
 import boto3
 import json
@@ -12,11 +14,15 @@ from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, Hone
 logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
+    """Django management command for parsing logs from S3."""
     help = 'Parse logs from S3 bucket and store them in the database'
     
     def handle(self, *args, **options):
-        """
-        Execute the log parsing process.
+        """Executes the log parsing process.
+        
+        Args:
+            *args: Variable length argument list.
+            **options: Arbitrary keyword arguments.
         """
         self.stdout.write(self.style.SUCCESS('Starting log parsing process...'))
         

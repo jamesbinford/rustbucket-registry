@@ -1,85 +1,28 @@
-"""
-Tests for RustBucketRegistry views.
+"""Tests for RustBucketRegistry views.
+
+This module contains unit tests for testing view functions including
+home views, detail views, and logsink views.
 """
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
 from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert
+from rustbucketregistry.tests.fixtures import TestDataMixin
 
 
-class HomeViewsTest(TestCase):
+class HomeViewsTest(TestCase, TestDataMixin):
     """Tests for home views."""
     
     def setUp(self):
-        """Set up test data and client."""
+        """Sets up test data and client."""
         self.client = Client()
         
-        # Create a test user for authentication
-        from django.contrib.auth.models import User
-        self.test_user = User.objects.create_user(
-            username='testuser',
-            password='testpass'
-        )
+        # Create basic test data using the mixin
+        self.create_basic_test_data()
         
         # Login the test client
         self.client.login(username='testuser', password='testpass')
-        
-        self.rustbucket1 = Rustbucket.objects.create(
-            name="test-rustbucket-1",
-            url="https://test1.example.com",
-            description="Test rustbucket 1",
-            ip_address="192.168.1.1",
-            operating_system="Linux"
-        )
-        self.rustbucket2 = Rustbucket.objects.create(
-            name="test-rustbucket-2",
-            url="https://test2.example.com",
-            description="Test rustbucket 2",
-            ip_address="192.168.1.2",
-            operating_system="Linux"
-        )
-        
-        # Create log sinks first
-        self.logsink1 = LogSink.objects.create(
-            rustbucket=self.rustbucket1,
-            log_type="Info",
-            size="5MB",
-            alert_level="low"
-        )
-
-        self.logsink2 = LogSink.objects.create(
-            rustbucket=self.rustbucket1,
-            log_type="Error",
-            size="10MB",
-            alert_level="high"
-        )
-
-        # Create some log entries
-        LogEntry.objects.create(
-            logsink=self.logsink1,
-            rustbucket=self.rustbucket1,
-            level="INFO",
-            message="Test log message 1",
-            source_ip="192.168.1.1"
-        )
-        LogEntry.objects.create(
-            logsink=self.logsink2,
-            rustbucket=self.rustbucket1,
-            level="ERROR",
-            message="Test error message",
-            source_ip="192.168.1.2"
-        )
-        
-        # Create an alert
-        Alert.objects.create(
-            logsink=self.logsink2,
-            rustbucket=self.rustbucket1,
-            severity="HIGH",
-            type="error",
-            message="Test alert",
-            source="Security Scan"
-        )
     
     def test_index_view(self):
         """Test the index view."""
