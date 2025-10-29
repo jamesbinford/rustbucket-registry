@@ -31,13 +31,6 @@ class Rustbucket(models.Model):
         help_text="URL of the rustbucket"
     )
 
-    # Description of the rustbucket
-    description = models.TextField(
-        null=True,
-        blank=True,
-        help_text="Description of the rustbucket"
-    )
-
     # Connection information
     ip_address = models.GenericIPAddressField(
         help_text="IP address of the rustbucket"
@@ -102,12 +95,7 @@ class Rustbucket(models.Model):
         blank=True,
         help_text="Token provided by the Rustbucket for registration"
     )
-    api_key = models.UUIDField(
-        default=uuid.uuid4,
-        unique=True,
-        editable=False,
-        help_text="API key for rustbucket authentication (for backward compatibility)"
-    )
+
     registered_at = models.DateTimeField(
         default=timezone.now,
         help_text="When the rustbucket was registered"

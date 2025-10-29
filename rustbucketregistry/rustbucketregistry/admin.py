@@ -37,7 +37,7 @@ class RustbucketAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'ip_address', 'status', 'operating_system', 'last_seen')
     list_filter = ('status', 'operating_system')
     search_fields = ('id', 'name', 'ip_address')
-    readonly_fields = ('id', 'api_key', 'registered_at')
+    readonly_fields = ('id', 'registered_at')
     fieldsets = (
         ('Identification', {
             'fields': ('id', 'name', 'api_key')

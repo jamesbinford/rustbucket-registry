@@ -22,6 +22,7 @@ from django.contrib.auth.decorators import login_required
 # Import views
 from rustbucketregistry.views.home import index, about, detail
 from rustbucketregistry.views.logsinks import logsinks_view, logsink_api, honeypot_api
+from rustbucketregistry.views.register import register_rustbucket
 
 # Main URL patterns
 urlpatterns = [
@@ -35,12 +36,12 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='/login/'), name='logout'),
 
+    # Registration API
+    path('api/register/', register_rustbucket, name='register_rustbucket'),
+
     # Internal API endpoints (for UI)
     path('api/logsinks/', login_required(logsink_api), name='logsinks_api'),
     path('api/logsinks/<str:bucket_id>/', login_required(logsink_api), name='logsinks_api_detail'),
     path('api/honeypot/', login_required(honeypot_api), name='honeypot_api'),
     path('api/honeypot/<str:bucket_id>/', login_required(honeypot_api), name='honeypot_api_detail'),
-
-    # External API endpoints (for Rustbuckets)
-    path('api/v1/', include('rustbucketregistry.api.urls')),
 ]
