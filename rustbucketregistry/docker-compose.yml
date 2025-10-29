@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: Texas1985@@@
+      MYSQL_DATABASE: rustbucket_registry
+      MYSQL_USER: rustbucket
+      MYSQL_PASSWORD: Texas1985@@@
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - SECRET_KEY=django-secret-key-for-docker
+      - DB_NAME=rustbucket_registry
+      - DB_USER=rustbucket
+      - DB_PASSWORD=Texas1985@@@
+      - DB_HOST=db
+      - DB_PORT=3306
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+volumes:
+  mysql_data:
