@@ -15,8 +15,12 @@ class RustbucketregistryConfig(AppConfig):
         """
         Called when Django starts.
 
-        This is where we start the APScheduler for background tasks.
+        This is where we start the APScheduler for background tasks
+        and import signal handlers.
         """
+        # Import signal handlers (must be imported to register them)
+        import rustbucketregistry.signals  # noqa: F401
+
         # Only start scheduler if not running migrations or other management commands
         # that don't need the scheduler
         run_scheduler = os.environ.get('RUN_SCHEDULER', 'true').lower() == 'true'

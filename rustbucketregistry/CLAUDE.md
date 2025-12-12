@@ -92,6 +92,20 @@ python manage.py run_task cleanup
 python manage.py run_task daily_summary
 ```
 
+### Notifications
+
+Test notification channels:
+```bash
+# List all notification channels
+python manage.py test_notification --list
+
+# Test a specific channel
+python manage.py test_notification --channel "Channel Name"
+
+# Test all active channels
+python manage.py test_notification --all
+```
+
 ## Project Structure
 
 This is a standard Django project with the following structure:
@@ -103,7 +117,9 @@ This is a standard Django project with the following structure:
   - `wsgi.py` & `asgi.py`: WSGI/ASGI application entry points
   - `scheduler.py`: APScheduler configuration for background tasks
   - `scheduled_tasks.py`: Automated task implementations
-  - `apps.py`: App configuration that starts the scheduler
+  - `notifications.py`: Notification service (email, Slack, webhook)
+  - `signals.py`: Django signal handlers (auto-send notifications on alerts)
+  - `apps.py`: App configuration that starts the scheduler and loads signals
 
 ## Database Configuration
 
@@ -128,6 +144,31 @@ The project uses **APScheduler** for automated tasks. The scheduler starts autom
 - Disable scheduler: Set environment variable `RUN_SCHEDULER=false`
 
 See `SCHEDULER_SETUP.md` for full documentation.
+
+## Real-time Alert Notifications
+
+The project supports automatic notifications when alerts are created. Notifications can be sent via email, Slack, or webhooks.
+
+### Supported Channels
+
+- **Email**: Send alerts to multiple email addresses
+- **Slack**: Post alerts to Slack channels via webhooks
+- **Webhook**: Send alerts to custom webhook endpoints (PagerDuty, OpsGenie, etc.)
+
+### Configuration
+
+Notification channels are configured in Django Admin:
+1. Go to **Admin → Notification Channels**
+2. Create a new channel with appropriate configuration
+3. Test the channel to verify it works
+4. Notifications are sent automatically when alerts are created
+
+### Filtering
+
+- **Severity filtering**: Only notify on high/medium/low severity alerts
+- **Alert type filtering**: Only notify on specific alert types
+
+See `NOTIFICATIONS_SETUP.md` for full documentation and setup instructions.
 
 ## Style Guidelines
 - Use Google's Python Style Guide (https://google.github.io/styleguide/pyguide.html) for Python code.

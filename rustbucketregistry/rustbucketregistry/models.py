@@ -407,3 +407,79 @@ class HoneypotActivity(models.Model):
 
     def __str__(self):
         return f"{self.type} from {self.source_ip}"
+
+
+class NotificationChannel(models.Model):
+    """
+    Represents a notification channel for alerts.
+
+    Supports email, Slack, and webhook notifications with configurable
+    filtering based on severity and alert types.
+    """
+    CHANNEL_TYPE_CHOICES = [
+        ('email', 'Email'),
+        ('slack', 'Slack'),
+        ('webhook', 'Webhook'),
+    ]
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Name of the notification channel"
+    )
+
+    channel_type = models.CharField(
+        max_length=20,
+        choices=CHANNEL_TYPE_CHOICES,
+        help_text="Type of notification channel"
+    )
+
+    # Configuration stored as JSON
+    # For email: {"recipients": ["email1@example.com", "email2@example.com"]}
+    # For Slack: {"webhook_url": "https://hooks.slack.com/services/..."}
+    # For webhook: {"url": "https://your-webhook.com/endpoint", "headers": {...}}
+    config = models.JSONField(
+        help_text="Configuration for the notification channel (email addresses, webhook URLs, etc.)"
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this notification channel is active"
+    )
+
+    # Filter criteria
+    SEVERITY_CHOICES = [
+        ('low', 'Low'),
+        ('medium', 'Medium'),
+        ('high', 'High'),
+    ]
+
+    min_severity = models.CharField(
+        max_length=10,
+        default='low',
+        choices=SEVERITY_CHOICES,
+        help_text="Minimum severity level to trigger notifications"
+    )
+
+    alert_types = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="List of alert types to notify on (empty = all types)"
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the notification channel was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the notification channel was last updated"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Notification Channel'
+        verbose_name_plural = 'Notification Channels'
+
+    def __str__(self):
+        return f"{self.name} ({self.channel_type})"
