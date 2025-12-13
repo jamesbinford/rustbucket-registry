@@ -26,8 +26,15 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy project
 COPY . /app/
 
+# Create static and media directories
+RUN mkdir -p /app/staticfiles /app/media
+
 # Expose port
 EXPOSE 8000
 
-# Start MySQL and Django
-CMD python manage.py runserver 0.0.0.0:8000
+# Copy entrypoint script
+COPY entrypoint.sh /app/
+RUN chmod +x /app/entrypoint.sh
+
+# Run entrypoint script
+ENTRYPOINT ["/app/entrypoint.sh"]

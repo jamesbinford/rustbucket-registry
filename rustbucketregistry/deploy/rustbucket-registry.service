@@ -1,0 +1,36 @@
+# Rustbucket Registry - Systemd Service
+# Location: /etc/systemd/system/rustbucket-registry.service
+#
+# Installation:
+#   sudo cp deploy/rustbucket-registry.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable rustbucket-registry
+#   sudo systemctl start rustbucket-registry
+
+[Unit]
+Description=Rustbucket Registry Gunicorn Service
+After=network.target mysql.service
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/rustbucket-registry/rustbucketregistry
+Environment="PATH=/opt/rustbucket-registry/venv/bin"
+EnvironmentFile=/opt/rustbucket-registry/rustbucketregistry/.env
+
+ExecStart=/opt/rustbucket-registry/venv/bin/gunicorn \
+    --workers 4 \
+    --threads 2 \
+    --bind 127.0.0.1:8000 \
+    --timeout 60 \
+    --access-logfile /var/log/rustbucket-registry/access.log \
+    --error-logfile /var/log/rustbucket-registry/error.log \
+    --log-level info \
+    rustbucketregistry.wsgi:application
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

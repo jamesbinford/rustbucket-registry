@@ -1,12 +1,45 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
-.git/
-.gitignore
-README.md
-.DS_Store
+*.py[cod]
+*$py.class
+*.so
+venv/
+env/
+ENV/
+*.egg-info/
+
+# Django
+*.log
+db.sqlite3
+/staticfiles/
+/media/
+
+# Environment
+.env
+.env.local
+
+# IDE
 .vscode/
 .idea/
-*.log
+*.swp
+.DS_Store
+
+# Git
+.git/
+.gitignore
+
+# Documentation (keep deploy docs)
+*.md
+!DEPLOYMENT.md
+
+# Testing
+.pytest_cache/
+.coverage
+
+# Backup files
+*.bak
+backups/
+
+# Database dumps
+*.sql
+*.sql.gz

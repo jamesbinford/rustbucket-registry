@@ -4,10 +4,10 @@ services:
   db:
     image: mysql:8.0
     environment:
-      MYSQL_ROOT_PASSWORD: Texas1985@@@
-      MYSQL_DATABASE: rustbucket_registry
-      MYSQL_USER: rustbucket
-      MYSQL_PASSWORD: Texas1985@@@
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
@@ -21,18 +21,17 @@ services:
     build: .
     ports:
       - "8000:8000"
-    environment:
-      - SECRET_KEY=django-secret-key-for-docker
-      - DB_NAME=rustbucket_registry
-      - DB_USER=rustbucket
-      - DB_PASSWORD=Texas1985@@@
-      - DB_HOST=db
-      - DB_PORT=3306
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
     volumes:
       - .:/app
+      - static_volume:/app/staticfiles
+      - media_volume:/app/media
 
 volumes:
   mysql_data:
+  static_volume:
+  media_volume:

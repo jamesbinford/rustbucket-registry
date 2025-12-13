@@ -17,3 +17,6 @@ urllib3==2.5.0
 
 # Background task scheduler
 APScheduler==3.10.4
+
+# Production web server
+gunicorn==21.2.0
