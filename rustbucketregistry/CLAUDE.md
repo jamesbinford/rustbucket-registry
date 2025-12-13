@@ -120,6 +120,7 @@ This is a standard Django project with the following structure:
   - `notifications.py`: Notification service (email, Slack, webhook)
   - `signals.py`: Django signal handlers (auto-send notifications on alerts)
   - `apps.py`: App configuration that starts the scheduler and loads signals
+  - `views/register.py`: Registration and log extraction endpoints with S3 support
 
 ## Database Configuration
 
@@ -169,6 +170,38 @@ Notification channels are configured in Django Admin:
 - **Alert type filtering**: Only notify on specific alert types
 
 See `NOTIFICATIONS_SETUP.md` for full documentation and setup instructions.
+
+## S3 Bucket Configuration
+
+Each rustbucket can specify its own S3 bucket where it stores logs. The registry can then read logs directly from the rustbucket's S3 bucket (S3-to-S3 copy), which is more efficient than HTTP pulling.
+
+### Rustbucket S3 Fields
+
+- **s3_bucket_name**: The name of the S3 bucket where the rustbucket stores logs
+- **s3_region**: AWS region for the bucket (default: us-east-1)
+- **s3_access_key_id**: AWS access key ID (optional if using IAM roles)
+- **s3_secret_access_key**: AWS secret access key (optional if using IAM roles)
+- **s3_prefix**: Folder path in the bucket where logs are stored (default: logs/)
+
+### How It Works
+
+1. **During Registration**: Rustbucket provides S3 bucket configuration in the registration payload
+2. **During Updates**: Rustbucket can update its S3 configuration via the update endpoint
+3. **Log Extraction**: The scheduled task `extract_logs` will:
+   - Check if rustbucket has S3 configured (`has_s3_configured()`)
+   - If yes: Read logs directly from rustbucket's S3 bucket using `extract_logs_from_s3()`
+   - If no: Fall back to HTTP pull method
+4. **S3-to-S3 Copy**: Logs are copied from rustbucket's S3 bucket to the registry's S3 bucket
+
+### Configuration in Admin
+
+The S3 fields are visible in Django Admin under the "S3 Configuration" section (collapsed by default).
+
+### Security Notes
+
+- **Production**: Use IAM roles instead of storing access keys
+- **Development**: Can provide access keys for testing
+- **Same Account**: If rustbucket and registry are in the same AWS account, credentials may not be needed
 
 ## Style Guidelines
 - Use Google's Python Style Guide (https://google.github.io/styleguide/pyguide.html) for Python code.

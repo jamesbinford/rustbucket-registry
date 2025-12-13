@@ -41,13 +41,18 @@ class RustbucketAdmin(admin.ModelAdmin):
     readonly_fields = ('id', 'registered_at')
     fieldsets = (
         ('Identification', {
-            'fields': ('id', 'name', 'api_key')
+            'fields': ('id', 'name', 'token')
         }),
         ('Connection Information', {
-            'fields': ('ip_address', 'status')
+            'fields': ('ip_address', 'url', 'status')
         }),
         ('System Information', {
             'fields': ('operating_system', 'cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections')
+        }),
+        ('S3 Configuration', {
+            'fields': ('s3_bucket_name', 's3_region', 's3_access_key_id', 's3_secret_access_key', 's3_prefix'),
+            'description': 'S3 bucket where this rustbucket stores its logs. The registry will read logs directly from this bucket.',
+            'classes': ('collapse',)
         }),
         ('Registration Information', {
             'fields': ('registered_at', 'last_seen', 'last_log_dump')

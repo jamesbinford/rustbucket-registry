@@ -31,12 +31,17 @@ def register_rustbucket(request):
         "name": "string",
         "ip_address": "string",
         "operating_system": "string",
-        "cpu_usage": "string",
-        "memory_usage": "string",
-        "disk_space": "string",
-        "uptime": "string",
-        "connections": "string",
-        "token": "string"
+        "cpu_usage": "string",  # optional
+        "memory_usage": "string",  # optional
+        "disk_space": "string",  # optional
+        "uptime": "string",  # optional
+        "connections": "string",  # optional
+        "token": "string",
+        "s3_bucket_name": "string",  # optional - S3 bucket for logs
+        "s3_region": "string",  # optional - AWS region (default: us-east-1)
+        "s3_access_key_id": "string",  # optional - AWS access key
+        "s3_secret_access_key": "string",  # optional - AWS secret key
+        "s3_prefix": "string"  # optional - S3 prefix/folder (default: logs/)
     }
 
     Args:
@@ -78,8 +83,11 @@ def register_rustbucket(request):
             token=data['token']  # Store the token as per API documentation
         )
 
-        # Optional fields
-        optional_fields = ['cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections']
+        # Optional fields (including S3 configuration)
+        optional_fields = [
+            'cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections',
+            's3_bucket_name', 's3_region', 's3_access_key_id', 's3_secret_access_key', 's3_prefix'
+        ]
         for field in optional_fields:
             if field in data:
                 setattr(rustbucket, field, data[field])
@@ -137,8 +145,12 @@ def pull_bucket_updates():
 
                 # Update the rustbucket with the new information
                 update_data = {}
-                fields_to_update = ['name', 'operating_system', 'cpu_usage',
-                                   'memory_usage', 'disk_space', 'uptime', 'connections']
+                fields_to_update = [
+                    'name', 'operating_system', 'cpu_usage',
+                    'memory_usage', 'disk_space', 'uptime', 'connections',
+                    's3_bucket_name', 's3_region', 's3_access_key_id',
+                    's3_secret_access_key', 's3_prefix'
+                ]
 
                 for field in fields_to_update:
                     if field in data and getattr(rustbucket, field) != data[field]:
@@ -217,12 +229,120 @@ def update_buckets(request):
         }, status=500)
 
 
+def extract_logs_from_s3(rustbucket, registry_s3_client=None):
+    """
+    Extract logs directly from a rustbucket's S3 bucket.
+
+    This is more efficient than HTTP pulling as it copies files directly
+    between S3 buckets or lists files in the rustbucket's bucket.
+
+    Args:
+        rustbucket: Rustbucket instance with S3 configuration
+        registry_s3_client: Optional S3 client for registry's bucket
+
+    Returns:
+        dict: Log extraction result or None if failed
+    """
+    try:
+        # Get S3 client for the rustbucket's bucket
+        s3_client = rustbucket.get_s3_client()
+        if not s3_client:
+            logger.warning(f"Could not create S3 client for rustbucket {rustbucket.id}")
+            return None
+
+        # List recent log files from rustbucket's S3 bucket
+        prefix = rustbucket.s3_prefix or 'logs/'
+        response = s3_client.list_objects_v2(
+            Bucket=rustbucket.s3_bucket_name,
+            Prefix=prefix,
+            MaxKeys=10  # Get recent logs
+        )
+
+        if 'Contents' not in response or not response['Contents']:
+            logger.info(f"No logs found in S3 bucket for rustbucket {rustbucket.id}")
+            return None
+
+        # Sort by last modified, get the most recent file
+        files = sorted(response['Contents'], key=lambda x: x['LastModified'], reverse=True)
+        latest_file = files[0]
+        source_key = latest_file['Key']
+
+        # Check if we've already processed this file
+        if rustbucket.last_log_dump and latest_file['LastModified'].replace(tzinfo=None) <= rustbucket.last_log_dump.replace(tzinfo=None):
+            logger.debug(f"No new logs for rustbucket {rustbucket.id}")
+            return None
+
+        # Get file size
+        file_size = latest_file['Size']
+        file_size_mb = file_size / (1024 * 1024)
+        log_size_str = f"{file_size_mb:.2f} MB"
+
+        # If registry has S3, copy the file there
+        if registry_s3_client and settings.AWS_S3_BUCKET_NAME:
+            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+            dest_key = f"{rustbucket.id}_{timestamp}_logs.txt"
+
+            # Copy from rustbucket's S3 to registry's S3
+            copy_source = {
+                'Bucket': rustbucket.s3_bucket_name,
+                'Key': source_key
+            }
+
+            registry_s3_client.copy(
+                copy_source,
+                settings.AWS_S3_BUCKET_NAME,
+                dest_key
+            )
+
+            logger.info(f"Copied logs from {rustbucket.s3_bucket_name}/{source_key} to registry S3")
+        else:
+            logger.info(f"Found logs in {rustbucket.s3_bucket_name}/{source_key} (registry S3 not configured)")
+
+        # Update rustbucket
+        rustbucket.last_log_dump = timezone.now()
+        rustbucket.save()
+
+        # Create or update log sink
+        from rustbucketregistry.models import LogSink
+        log_sink, created = LogSink.objects.get_or_create(
+            rustbucket=rustbucket,
+            log_type='Log Extraction',
+            defaults={
+                'size': log_size_str,
+                'status': 'Active',
+                'alert_level': 'low'
+            }
+        )
+
+        if not created:
+            log_sink.size = log_size_str
+            log_sink.last_update = timezone.now()
+            log_sink.save()
+
+        return {
+            'id': rustbucket.id,
+            'name': rustbucket.name,
+            'file_name': source_key,
+            'log_size': log_size_str,
+            'method': 's3'
+        }
+
+    except Exception as e:
+        logger.error(f"Error extracting logs from S3 for rustbucket {rustbucket.id}: {str(e)}")
+        return None
+
+
 def extract_logs_from_buckets():
     """Pull-based log extraction function to extract logs from rustbuckets.
 
     This function is meant to be called by a scheduler or manually.
-    It iterates through all active rustbuckets and pulls their logs from
-    their extract_logs endpoint. The logs are then stored in an S3 bucket.
+    It iterates through all active rustbuckets and extracts their logs.
+
+    Two methods are supported:
+    1. S3-to-S3: If rustbucket has S3 configured, copy logs from rustbucket's S3 bucket
+    2. HTTP Pull: If no S3, pull logs via HTTP from rustbucket's extract_logs endpoint
+
+    Logs are stored in the registry's centralized S3 bucket if configured.
 
     Returns:
         A dictionary containing a summary of the extraction process.
@@ -234,8 +354,8 @@ def extract_logs_from_buckets():
     # Get all active rustbuckets
     rustbuckets = Rustbucket.objects.filter(status='Active')
 
-    # Initialize S3 client
-    s3_client = boto3.client(
+    # Initialize registry's S3 client for storing logs
+    registry_s3_client = boto3.client(
         's3',
         region_name=settings.AWS_S3_REGION,
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
@@ -244,6 +364,17 @@ def extract_logs_from_buckets():
 
     for rustbucket in rustbuckets:
         try:
+            # Try S3-to-S3 copy first if rustbucket has S3 configured
+            if rustbucket.has_s3_configured():
+                result = extract_logs_from_s3(rustbucket, registry_s3_client)
+                if result:
+                    log_data.append(result)
+                    extracted_count += 1
+                    continue  # Skip HTTP pull
+                else:
+                    logger.warning(f"S3 extraction failed for {rustbucket.id}, trying HTTP fallback")
+
+            # Fall back to HTTP pull method
             # Construct the log extraction URL using the rustbucket's IP address
             extract_url = f"http://{rustbucket.ip_address}/extract_logs"
 
@@ -286,7 +417,8 @@ def extract_logs_from_buckets():
                             'id': rustbucket.id,
                             'name': rustbucket.name,
                             'file_name': file_name,
-                            'log_size': log_size_str
+                            'log_size': log_size_str,
+                            'method': 'http'
                         })
 
                         extracted_count += 1
@@ -323,7 +455,8 @@ def extract_logs_from_buckets():
                     log_data.append({
                         'id': rustbucket.id,
                         'name': rustbucket.name,
-                        'log_size': f"{len(response.content) / (1024 * 1024):.2f} MB"
+                        'log_size': f"{len(response.content) / (1024 * 1024):.2f} MB",
+                        'method': 'http'
                     })
 
                     extracted_count += 1

@@ -96,6 +96,40 @@ class Rustbucket(models.Model):
         help_text="Token provided by the Rustbucket for registration"
     )
 
+    # S3 bucket configuration (where rustbucket stores its logs)
+    s3_bucket_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="S3 bucket name where this rustbucket stores logs"
+    )
+    s3_region = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        default='us-east-1',
+        help_text="AWS region for the S3 bucket"
+    )
+    s3_access_key_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="AWS access key ID for accessing the S3 bucket (optional for same-account access)"
+    )
+    s3_secret_access_key = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="AWS secret access key (stored encrypted - use IAM roles in production)"
+    )
+    s3_prefix = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        default='logs/',
+        help_text="Prefix/folder path in the S3 bucket where logs are stored"
+    )
+
     registered_at = models.DateTimeField(
         default=timezone.now,
         help_text="When the rustbucket was registered"
@@ -133,6 +167,34 @@ class Rustbucket(models.Model):
             # Generate a unique ID for new rustbuckets
             self.id = f"BKT{str(uuid.uuid4().int)[:6]}"
         super().save(*args, **kwargs)
+
+    def has_s3_configured(self):
+        """Check if this rustbucket has S3 bucket configuration."""
+        return bool(self.s3_bucket_name and self.s3_region)
+
+    def get_s3_client(self):
+        """
+        Get an S3 client configured for this rustbucket's bucket.
+
+        Returns:
+            boto3 S3 client or None if not configured
+        """
+        if not self.has_s3_configured():
+            return None
+
+        import boto3
+
+        # Use rustbucket-specific credentials if provided, otherwise use default
+        if self.s3_access_key_id and self.s3_secret_access_key:
+            return boto3.client(
+                's3',
+                region_name=self.s3_region,
+                aws_access_key_id=self.s3_access_key_id,
+                aws_secret_access_key=self.s3_secret_access_key
+            )
+        else:
+            # Use default credentials (IAM role, environment variables, etc.)
+            return boto3.client('s3', region_name=self.s3_region)
 
 
 class LogSink(models.Model):
