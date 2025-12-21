@@ -12,7 +12,7 @@ import json
 import requests
 
 from rustbucketregistry.models import Rustbucket
-from rustbucketregistry.api.views import pull_bucket_updates, update_buckets
+from rustbucketregistry.views.register import pull_bucket_updates, update_buckets
 
 
 class PullUpdateTest(TestCase):

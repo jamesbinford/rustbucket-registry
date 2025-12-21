@@ -15,7 +15,7 @@ import boto3
 from io import BytesIO
 
 from rustbucketregistry.models import Rustbucket, LogSink
-from rustbucketregistry.api.views import extract_logs_from_buckets, extract_logs
+from rustbucketregistry.views.register import extract_logs_from_buckets, extract_logs
 
 
 class LogExtractionTest(TestCase):
