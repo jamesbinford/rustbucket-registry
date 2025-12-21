@@ -23,3 +23,6 @@ gunicorn==21.2.0
 
 # IP geolocation for dashboard
 geoip2==4.8.0
+
+# AI-powered log analysis
+anthropic==0.40.0

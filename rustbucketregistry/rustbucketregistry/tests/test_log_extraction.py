@@ -155,7 +155,7 @@ class LogExtractionTest(TestCase):
         self.client.login(username='adminuser', password='adminpass')
         
         # Call the endpoint
-        url = reverse('api:api_extract_logs')
+        url = reverse('extract_logs')
         response = self.client.get(url)
         
         # Verify the response
@@ -169,7 +169,7 @@ class LogExtractionTest(TestCase):
     def test_extract_logs_endpoint_unauthorized(self):
         """Test the extract_logs endpoint with unauthorized user."""
         # Not logged in
-        url = reverse('api:api_extract_logs')
+        url = reverse('extract_logs')
         response = self.client.get(url)
         
         # Verify the response

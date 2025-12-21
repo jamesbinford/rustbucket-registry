@@ -26,7 +26,7 @@ class RustbucketAPITest(TestCase):
     
     def test_register_rustbucket(self):
         """Test the register_rustbucket endpoint."""
-        url = reverse('api:api_register_rustbucket')
+        url = reverse('register_rustbucket')
         data = {
             'name': 'new-rustbucket',
             'ip_address': '192.168.1.2',
@@ -64,7 +64,7 @@ class RustbucketAPITest(TestCase):
     
     def test_register_rustbucket_validation(self):
         """Test validation in the register_rustbucket endpoint."""
-        url = reverse('api:api_register_rustbucket')
+        url = reverse('register_rustbucket')
         
         # Test with missing required fields
         data = {'name': 'incomplete-rustbucket', 'test_skip_validation': True}
@@ -112,7 +112,7 @@ class RustbucketAPITest(TestCase):
     
     def test_get_rustbucket(self):
         """Test the get_rustbucket endpoint."""
-        url = reverse('api:api_get_rustbucket_by_id', args=[self.rustbucket.id])
+        url = reverse('get_rustbucket', args=[self.rustbucket.id])
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 200)
@@ -123,7 +123,7 @@ class RustbucketAPITest(TestCase):
     
     def test_get_rustbucket_not_found(self):
         """Test the get_rustbucket endpoint with non-existent ID."""
-        url = reverse('api:api_get_rustbucket_by_id', args=['nonexistent-id'])
+        url = reverse('get_rustbucket', args=['nonexistent-id'])
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 404)
@@ -143,7 +143,7 @@ class LogEntryAPITest(TestCase):
     
     def test_submit_logs(self):
         """Test the submit_logs endpoint."""
-        url = reverse('api:api_submit_logs')
+        url = reverse('submit_logs')
         logs_data = [
             {
                 'level': 'INFO',
@@ -175,7 +175,7 @@ class LogEntryAPITest(TestCase):
     
     def test_submit_logs_invalid_rustbucket(self):
         """Test the submit_logs endpoint with non-existent rustbucket ID."""
-        url = reverse('api:api_submit_logs')
+        url = reverse('submit_logs')
         logs_data = [
             {
                 'level': 'INFO',
@@ -208,7 +208,7 @@ class HoneypotActivityAPITest(TestCase):
     
     def test_report_honeypot_activity(self):
         """Test the report_honeypot_activity endpoint."""
-        url = reverse('api:api_report_honeypot_activity')
+        url = reverse('report_honeypot_activity')
         activity_data = {
             'activity_type': 'SSH_BRUTEFORCE',
             'source_ip': '10.0.0.1',
@@ -241,7 +241,7 @@ class HoneypotActivityAPITest(TestCase):
     
     def test_report_honeypot_activity_invalid_data(self):
         """Test the report_honeypot_activity endpoint with invalid data."""
-        url = reverse('api:api_report_honeypot_activity')
+        url = reverse('report_honeypot_activity')
         
         # Missing required fields
         activity_data = {'source_ip': '10.0.0.1'}

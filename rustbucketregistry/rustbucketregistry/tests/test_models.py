@@ -19,7 +19,6 @@ class RustbucketModelTest(TestCase):
         self.rustbucket = Rustbucket.objects.create(
             name="test-rustbucket",
             url="https://test-rustbucket.example.com",
-            description="Test rustbucket for unit tests",
             ip_address="192.168.1.1",
             operating_system="Linux"
         )

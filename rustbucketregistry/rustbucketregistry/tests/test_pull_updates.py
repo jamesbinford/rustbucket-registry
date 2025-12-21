@@ -131,7 +131,7 @@ class PullUpdateTest(TestCase):
         self.client.login(username='adminuser', password='adminpass')
         
         # Call the endpoint
-        url = reverse('api:api_update_buckets')
+        url = reverse('update_buckets')
         response = self.client.get(url)
         
         # Verify the response
@@ -145,7 +145,7 @@ class PullUpdateTest(TestCase):
     def test_update_buckets_endpoint_unauthorized(self):
         """Test the update_buckets endpoint with unauthorized user."""
         # Not logged in
-        url = reverse('api:api_update_buckets')
+        url = reverse('update_buckets')
         response = self.client.get(url)
         
         # Verify the response

@@ -277,7 +277,7 @@ class RegistrationWithS3ConfigTest(TestCase):
 
     def test_register_rustbucket_with_s3_config(self):
         """Test registering a rustbucket with S3 configuration."""
-        url = reverse('api:api_register_rustbucket')
+        url = reverse('register_rustbucket')
         data = {
             'name': 's3-enabled-rustbucket',
             'ip_address': '10.0.0.50',
@@ -309,7 +309,7 @@ class RegistrationWithS3ConfigTest(TestCase):
 
     def test_register_rustbucket_with_partial_s3_config(self):
         """Test registering with only bucket name and region (IAM role scenario)."""
-        url = reverse('api:api_register_rustbucket')
+        url = reverse('register_rustbucket')
         data = {
             'name': 'iam-rustbucket',
             'ip_address': '10.0.0.51',
@@ -336,7 +336,7 @@ class RegistrationWithS3ConfigTest(TestCase):
 
     def test_register_rustbucket_without_s3_config(self):
         """Test registering without S3 configuration (legacy behavior)."""
-        url = reverse('api:api_register_rustbucket')
+        url = reverse('register_rustbucket')
         data = {
             'name': 'legacy-rustbucket',
             'ip_address': '10.0.0.52',
