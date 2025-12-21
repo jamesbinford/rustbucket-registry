@@ -3,7 +3,12 @@ Admin configuration for the RustBucket Registry application.
 """
 from django.contrib import admin
 from django.contrib import messages
-from .models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, NotificationChannel
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.models import User
+from .models import (
+    Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, NotificationChannel,
+    UserProfile, RustbucketAccess, AuditLog
+)
 
 
 class LogSinkInline(admin.TabularInline):
@@ -199,3 +204,114 @@ class NotificationChannelAdmin(admin.ModelAdmin):
         )
 
     deactivate_channels.short_description = "Deactivate selected channels"
+
+
+# =============================================================================
+# RBAC Admin Configuration
+# =============================================================================
+
+class UserProfileInline(admin.StackedInline):
+    """Inline admin for UserProfile on User page"""
+    model = UserProfile
+    can_delete = False
+    verbose_name_plural = 'Profile'
+    fk_name = 'user'
+
+
+class RustbucketAccessInline(admin.TabularInline):
+    """Inline admin for RustbucketAccess on User page"""
+    model = RustbucketAccess
+    extra = 1
+    fk_name = 'user'
+    autocomplete_fields = ['rustbucket']
+    readonly_fields = ('granted_at',)
+
+
+class UserAdmin(BaseUserAdmin):
+    """Extended User admin with profile and access management"""
+    inlines = [UserProfileInline, RustbucketAccessInline]
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'get_role')
+    list_filter = BaseUserAdmin.list_filter + ('profile__role',)
+
+    def get_role(self, obj):
+        """Get user's role from profile"""
+        try:
+            return obj.profile.get_role_display()
+        except UserProfile.DoesNotExist:
+            return 'No Profile'
+    get_role.short_description = 'Role'
+    get_role.admin_order_field = 'profile__role'
+
+    def get_inline_instances(self, request, obj=None):
+        """Only show inlines when editing existing user"""
+        if not obj:
+            return []
+        return super().get_inline_instances(request, obj)
+
+
+# Unregister the default User admin and register our custom one
+admin.site.unregister(User)
+admin.site.register(User, UserAdmin)
+
+
+@admin.register(UserProfile)
+class UserProfileAdmin(admin.ModelAdmin):
+    """Admin view for UserProfile"""
+    list_display = ('user', 'role', 'all_rustbuckets_access', 'created_at')
+    list_filter = ('role', 'all_rustbuckets_access')
+    search_fields = ('user__username', 'user__email')
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('user',)
+
+    fieldsets = (
+        ('User', {
+            'fields': ('user',)
+        }),
+        ('Role & Access', {
+            'fields': ('role', 'all_rustbuckets_access'),
+            'description': 'Admin: Full access. Analyst: View all + manage alerts. Viewer: Read-only, limited to assigned rustbuckets.'
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+
+@admin.register(RustbucketAccess)
+class RustbucketAccessAdmin(admin.ModelAdmin):
+    """Admin view for RustbucketAccess"""
+    list_display = ('user', 'rustbucket', 'access_level', 'granted_by', 'granted_at')
+    list_filter = ('access_level', 'granted_at')
+    search_fields = ('user__username', 'rustbucket__name', 'rustbucket__id')
+    readonly_fields = ('granted_at',)
+    raw_id_fields = ('user', 'granted_by')
+    autocomplete_fields = ['rustbucket']
+
+    def save_model(self, request, obj, form, change):
+        """Automatically set granted_by to current user"""
+        if not change:  # Only on create
+            obj.granted_by = request.user
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(AuditLog)
+class AuditLogAdmin(admin.ModelAdmin):
+    """Admin view for AuditLog"""
+    list_display = ('timestamp', 'user', 'action', 'resource_type', 'resource_id', 'success', 'ip_address')
+    list_filter = ('action', 'success', 'resource_type', 'timestamp')
+    search_fields = ('user__username', 'resource_id', 'ip_address', 'details')
+    readonly_fields = ('user', 'action', 'resource_type', 'resource_id', 'details', 'ip_address', 'user_agent', 'timestamp', 'success')
+    date_hierarchy = 'timestamp'
+
+    def has_add_permission(self, request):
+        """Prevent manual creation of audit logs"""
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        """Prevent editing of audit logs"""
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        """Only superusers can delete audit logs"""
+        return request.user.is_superuser

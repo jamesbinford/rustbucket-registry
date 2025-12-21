@@ -17,7 +17,6 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-from django.contrib.auth.decorators import login_required
 
 # Import views
 from rustbucketregistry.views.home import index, about, detail
@@ -44,16 +43,17 @@ from rustbucketregistry.views.dashboard import (
 # Main URL patterns
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', login_required(index), name='home'),
-    path('bucket/<str:bucket_id>/', login_required(detail), name='bucket_detail'),
-    path('logsinks/', login_required(logsinks_view), name='logsinks'),
-    path('logsinks/<str:bucket_id>/', login_required(logsinks_view), name='logsinks_detail'),
+    # Views with RBAC decorators (login_required is applied in the view)
+    path('', index, name='home'),
+    path('bucket/<str:bucket_id>/', detail, name='bucket_detail'),
+    path('logsinks/', logsinks_view, name='logsinks'),
+    path('logsinks/<str:bucket_id>/', logsinks_view, name='logsinks_detail'),
 
     # Authentication views
     path('login/', auth_views.LoginView.as_view(), name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='/login/'), name='logout'),
 
-    # Public API endpoints (for rustbucket clients)
+    # Public API endpoints (for rustbucket clients - token auth)
     path('api/register/', register_rustbucket, name='register_rustbucket'),
     path('api/rustbucket/<str:rustbucket_id>/', get_rustbucket, name='get_rustbucket'),
     path('api/logs/submit/', submit_logs, name='submit_logs'),
@@ -61,22 +61,22 @@ urlpatterns = [
     path('api/logs/extract/', extract_logs, name='extract_logs'),
     path('api/buckets/update/', update_buckets, name='update_buckets'),
 
-    # Internal API endpoints (for UI)
-    path('api/logsinks/', login_required(logsink_api), name='logsinks_api'),
-    path('api/logsinks/<str:bucket_id>/', login_required(logsink_api), name='logsinks_api_detail'),
-    path('api/honeypot/', login_required(honeypot_api), name='honeypot_api'),
-    path('api/honeypot/<str:bucket_id>/', login_required(honeypot_api), name='honeypot_api_detail'),
+    # Internal API endpoints (for UI - RBAC applied in views)
+    path('api/logsinks/', logsink_api, name='logsinks_api'),
+    path('api/logsinks/<str:bucket_id>/', logsink_api, name='logsinks_api_detail'),
+    path('api/honeypot/', honeypot_api, name='honeypot_api'),
+    path('api/honeypot/<str:bucket_id>/', honeypot_api, name='honeypot_api_detail'),
 
-    # Dashboard
-    path('dashboard/', login_required(dashboard_view), name='dashboard'),
+    # Dashboard (RBAC applied in views)
+    path('dashboard/', dashboard_view, name='dashboard'),
 
-    # Dashboard API endpoints
-    path('api/dashboard/overview/', login_required(dashboard_overview_api), name='dashboard_overview_api'),
-    path('api/dashboard/attacks/', login_required(dashboard_attacks_api), name='dashboard_attacks_api'),
-    path('api/dashboard/top-ips/', login_required(dashboard_top_ips_api), name='dashboard_top_ips_api'),
-    path('api/dashboard/countries/', login_required(dashboard_countries_api), name='dashboard_countries_api'),
-    path('api/dashboard/alerts/', login_required(dashboard_alerts_api), name='dashboard_alerts_api'),
-    path('api/dashboard/resources/', login_required(dashboard_resources_api), name='dashboard_resources_api'),
-    path('api/dashboard/resources/<str:bucket_id>/', login_required(dashboard_resources_api), name='dashboard_resources_api_detail'),
-    path('api/dashboard/targets/', login_required(dashboard_targets_api), name='dashboard_targets_api'),
+    # Dashboard API endpoints (RBAC applied in views)
+    path('api/dashboard/overview/', dashboard_overview_api, name='dashboard_overview_api'),
+    path('api/dashboard/attacks/', dashboard_attacks_api, name='dashboard_attacks_api'),
+    path('api/dashboard/top-ips/', dashboard_top_ips_api, name='dashboard_top_ips_api'),
+    path('api/dashboard/countries/', dashboard_countries_api, name='dashboard_countries_api'),
+    path('api/dashboard/alerts/', dashboard_alerts_api, name='dashboard_alerts_api'),
+    path('api/dashboard/resources/', dashboard_resources_api, name='dashboard_resources_api'),
+    path('api/dashboard/resources/<str:bucket_id>/', dashboard_resources_api, name='dashboard_resources_api_detail'),
+    path('api/dashboard/targets/', dashboard_targets_api, name='dashboard_targets_api'),
 ]

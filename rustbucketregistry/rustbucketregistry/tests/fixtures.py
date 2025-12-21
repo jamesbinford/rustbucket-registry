@@ -5,25 +5,40 @@ for creating test data used across multiple test modules.
 """
 from django.contrib.auth.models import User
 from django.utils import timezone
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, UserProfile
 
 
-def create_test_user(username='testuser', password='testpass', is_staff=False):
-    """Creates a test user.
-    
+def create_test_user(username='testuser', password='testpass', is_staff=False, is_admin=True):
+    """Creates a test user with RBAC profile.
+
     Args:
         username: Username for the test user.
         password: Password for the test user.
         is_staff: Whether the user should have staff privileges.
-        
+        is_admin: Whether the user should have admin role (default True for tests).
+
     Returns:
         User: The created test user.
     """
-    return User.objects.create_user(
+    user = User.objects.create_user(
         username=username,
         password=password,
         is_staff=is_staff
     )
+    # Create or update UserProfile with admin role for testing
+    # The signal may have already created a profile, so we get_or_create
+    profile, _ = UserProfile.objects.get_or_create(
+        user=user,
+        defaults={
+            'role': 'admin' if is_admin else 'viewer',
+            'all_rustbuckets_access': is_admin
+        }
+    )
+    if is_admin:
+        profile.role = 'admin'
+        profile.all_rustbuckets_access = True
+        profile.save()
+    return user
 
 
 def create_test_rustbucket(name="test-rustbucket", ip_address="192.168.1.1", 

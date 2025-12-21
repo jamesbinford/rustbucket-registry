@@ -13,8 +13,14 @@ from django.db.models import Count, F
 from django.db.models.functions import TruncDate
 from django.core.cache import cache
 from django.conf import settings
+from django.contrib.auth.decorators import login_required
 
 from rustbucketregistry.models import Rustbucket, Alert, HoneypotActivity
+from rustbucketregistry.permissions import (
+    filter_rustbuckets_for_user,
+    rustbucket_access_required,
+    get_user_profile,
+)
 
 
 # Cache timeout in seconds (1 minute for real-time feel)
@@ -102,8 +108,11 @@ def get_country_from_ip(ip_address):
     return {'country_code': 'XX', 'country_name': 'Unknown'}
 
 
+@login_required
 def dashboard_view(request):
     """Main dashboard page view.
+
+    Shows only rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -111,17 +120,22 @@ def dashboard_view(request):
     Returns:
         HttpResponse: The rendered dashboard template.
     """
-    # Get all rustbuckets for the resource selector
-    rustbuckets = Rustbucket.objects.all()
+    # Get rustbuckets filtered by user access
+    rustbuckets = filter_rustbuckets_for_user(request.user)
+    profile = get_user_profile(request.user)
 
     context = {
         'rustbuckets': rustbuckets,
+        'user_profile': profile,
     }
     return render(request, 'dashboard.html', context)
 
 
+@login_required
 def dashboard_overview_api(request):
     """API endpoint for dashboard summary statistics.
+
+    Returns statistics only for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -131,7 +145,8 @@ def dashboard_overview_api(request):
             attack totals, and unresolved alerts.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_overview_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_overview_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -140,18 +155,25 @@ def dashboard_overview_api(request):
 
     start, end = get_time_range(request)
 
-    # Get rustbucket statistics
-    total_rustbuckets = Rustbucket.objects.count()
-    active_rustbuckets = Rustbucket.objects.filter(status='Active').count()
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
 
-    # Get attack statistics for the time range
+    # Get rustbucket statistics (filtered by access)
+    total_rustbuckets = accessible_rustbuckets.count()
+    active_rustbuckets = accessible_rustbuckets.filter(status='Active').count()
+
+    # Get attack statistics for the time range (filtered by access)
     total_attacks = HoneypotActivity.objects.filter(
+        rustbucket__in=accessible_rustbuckets,
         timestamp__gte=start,
         timestamp__lte=end
     ).count()
 
-    # Get unresolved alerts
-    unresolved_alerts = Alert.objects.filter(is_resolved=False).count()
+    # Get unresolved alerts (filtered by access)
+    unresolved_alerts = Alert.objects.filter(
+        logsink__rustbucket__in=accessible_rustbuckets,
+        is_resolved=False
+    ).count()
 
     data = {
         'total_rustbuckets': total_rustbuckets,
@@ -168,8 +190,11 @@ def dashboard_overview_api(request):
     return JsonResponse(data)
 
 
+@login_required
 def dashboard_attacks_api(request):
     """API endpoint for attack trends over time (line chart data).
+
+    Returns only attacks for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -179,7 +204,8 @@ def dashboard_attacks_api(request):
             attack counts by type over time.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_attacks_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_attacks_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -188,8 +214,12 @@ def dashboard_attacks_api(request):
 
     start, end = get_time_range(request)
 
-    # Get attacks grouped by date and type
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get attacks grouped by date and type (filtered by access)
     attacks = HoneypotActivity.objects.filter(
+        rustbucket__in=accessible_rustbuckets,
         timestamp__gte=start,
         timestamp__lte=end
     ).annotate(
@@ -245,8 +275,11 @@ def dashboard_attacks_api(request):
     return JsonResponse(data)
 
 
+@login_required
 def dashboard_top_ips_api(request):
     """API endpoint for top attacking IPs (bar chart data).
+
+    Returns only attacks for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -256,7 +289,8 @@ def dashboard_top_ips_api(request):
             for bar chart showing top 10 attacking IPs.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_top_ips_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_top_ips_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -265,8 +299,12 @@ def dashboard_top_ips_api(request):
 
     start, end = get_time_range(request)
 
-    # Get top attacking IPs
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get top attacking IPs (filtered by access)
     top_ips = HoneypotActivity.objects.filter(
+        rustbucket__in=accessible_rustbuckets,
         timestamp__gte=start,
         timestamp__lte=end
     ).values('source_ip').annotate(
@@ -286,10 +324,12 @@ def dashboard_top_ips_api(request):
     return JsonResponse(data)
 
 
+@login_required
 def dashboard_countries_api(request):
     """API endpoint for attacks by country (bar chart data).
 
     Uses GeoIP2 to lookup country for each attacking IP.
+    Returns only attacks for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -299,7 +339,8 @@ def dashboard_countries_api(request):
             for bar chart showing top 10 attacking countries.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_countries_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_countries_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -308,8 +349,12 @@ def dashboard_countries_api(request):
 
     start, end = get_time_range(request)
 
-    # Get all activities in the time range
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get all activities in the time range (filtered by access)
     activities = HoneypotActivity.objects.filter(
+        rustbucket__in=accessible_rustbuckets,
         timestamp__gte=start,
         timestamp__lte=end
     ).values_list('source_ip', flat=True)
@@ -346,8 +391,11 @@ def dashboard_countries_api(request):
     return JsonResponse(data)
 
 
+@login_required
 def dashboard_alerts_api(request):
     """API endpoint for alert frequency by type (pie chart data).
+
+    Returns only alerts for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -357,7 +405,8 @@ def dashboard_alerts_api(request):
             for pie chart showing alert distribution.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_alerts_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_alerts_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -366,8 +415,12 @@ def dashboard_alerts_api(request):
 
     start, end = get_time_range(request)
 
-    # Get alerts grouped by type
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get alerts grouped by type (filtered by access)
     alerts = Alert.objects.filter(
+        logsink__rustbucket__in=accessible_rustbuckets,
         created_at__gte=start,
         created_at__lte=end
     ).values('type').annotate(
@@ -398,8 +451,12 @@ def dashboard_alerts_api(request):
     return JsonResponse(data)
 
 
+@login_required
+@rustbucket_access_required('view')
 def dashboard_resources_api(request, bucket_id=None):
     """API endpoint for current resource usage (card data).
+
+    Returns only resources for rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -409,17 +466,21 @@ def dashboard_resources_api(request, bucket_id=None):
         JsonResponse: Current resource values (CPU, memory, disk)
             for rustbuckets, displayed as cards/gauges.
     """
-    cache_key = f'dashboard_resources_{bucket_id or "all"}'
+    user_id = request.user.id
+    cache_key = f'dashboard_resources_{bucket_id or "all"}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
     if cached_data:
         return JsonResponse(cached_data)
 
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
     # Get rustbuckets, optionally filtered by ID
     if bucket_id:
         try:
-            rustbuckets = Rustbucket.objects.filter(id=bucket_id)
+            rustbuckets = accessible_rustbuckets.filter(id=bucket_id)
             if not rustbuckets.exists():
                 return JsonResponse(
                     {'error': f'Bucket with ID {bucket_id} not found'},
@@ -431,7 +492,7 @@ def dashboard_resources_api(request, bucket_id=None):
                 status=404
             )
     else:
-        rustbuckets = Rustbucket.objects.filter(status='Active')
+        rustbuckets = accessible_rustbuckets.filter(status='Active')
 
     # Build resource data
     buckets_data = []
@@ -454,8 +515,11 @@ def dashboard_resources_api(request, bucket_id=None):
     return JsonResponse(data)
 
 
+@login_required
 def dashboard_targets_api(request):
     """API endpoint for most targeted rustbuckets (bar chart data).
+
+    Returns only rustbuckets the user has access to.
 
     Args:
         request: The HTTP request object.
@@ -465,7 +529,8 @@ def dashboard_targets_api(request):
             for bar chart showing most targeted rustbuckets.
     """
     range_param = request.GET.get('range', '7d')
-    cache_key = f'dashboard_targets_{range_param}'
+    user_id = request.user.id
+    cache_key = f'dashboard_targets_{range_param}_{user_id}'
 
     # Try cache first
     cached_data = cache.get(cache_key)
@@ -474,8 +539,12 @@ def dashboard_targets_api(request):
 
     start, end = get_time_range(request)
 
-    # Get most targeted rustbuckets
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get most targeted rustbuckets (filtered by access)
     targets = HoneypotActivity.objects.filter(
+        rustbucket__in=accessible_rustbuckets,
         timestamp__gte=start,
         timestamp__lte=end
     ).values(

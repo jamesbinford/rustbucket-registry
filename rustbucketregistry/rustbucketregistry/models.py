@@ -545,3 +545,333 @@ class NotificationChannel(models.Model):
 
     def __str__(self):
         return f"{self.name} ({self.channel_type})"
+
+
+# =============================================================================
+# Role-Based Access Control (RBAC) Models
+# =============================================================================
+
+class UserProfile(models.Model):
+    """
+    Extends Django's User model with role-based access control.
+
+    Roles:
+    - admin: Full access to all features and rustbuckets
+    - analyst: Can view all data, manage alerts, but cannot manage users/settings
+    - viewer: Read-only access to assigned rustbuckets only
+    """
+    from django.contrib.auth.models import User
+
+    ROLE_CHOICES = [
+        ('admin', 'Administrator'),
+        ('analyst', 'Analyst'),
+        ('viewer', 'Viewer'),
+    ]
+
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE,
+        related_name='profile',
+        help_text="The Django user this profile belongs to"
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=ROLE_CHOICES,
+        default='viewer',
+        help_text="User's role determining their access level"
+    )
+
+    # If True, user can access all rustbuckets (useful for analysts)
+    all_rustbuckets_access = models.BooleanField(
+        default=False,
+        help_text="If True, user can access all rustbuckets regardless of specific assignments"
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the profile was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When the profile was last updated"
+    )
+
+    class Meta:
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+
+    def __str__(self):
+        return f"{self.user.username} ({self.get_role_display()})"
+
+    def is_admin(self):
+        """Check if user has admin role."""
+        return self.role == 'admin' or self.user.is_superuser
+
+    def is_analyst(self):
+        """Check if user has analyst role or higher."""
+        return self.role in ('admin', 'analyst') or self.user.is_superuser
+
+    def is_viewer(self):
+        """Check if user has viewer role or higher (all authenticated users)."""
+        return self.role in ('admin', 'analyst', 'viewer') or self.user.is_superuser
+
+    def can_access_rustbucket(self, rustbucket):
+        """
+        Check if user can access a specific rustbucket.
+
+        Args:
+            rustbucket: Rustbucket instance or rustbucket ID
+
+        Returns:
+            bool: True if user has access
+        """
+        # Admins and users with all_rustbuckets_access can access everything
+        if self.is_admin() or self.all_rustbuckets_access:
+            return True
+
+        # Check specific rustbucket access
+        rustbucket_id = rustbucket.id if hasattr(rustbucket, 'id') else rustbucket
+        return RustbucketAccess.objects.filter(
+            user=self.user,
+            rustbucket_id=rustbucket_id
+        ).exists()
+
+    def get_accessible_rustbuckets(self):
+        """
+        Get queryset of rustbuckets the user can access.
+
+        Returns:
+            QuerySet of Rustbucket objects
+        """
+        if self.is_admin() or self.all_rustbuckets_access:
+            return Rustbucket.objects.all()
+
+        accessible_ids = RustbucketAccess.objects.filter(
+            user=self.user
+        ).values_list('rustbucket_id', flat=True)
+
+        return Rustbucket.objects.filter(id__in=accessible_ids)
+
+    def can_manage_alerts(self):
+        """Check if user can manage (acknowledge/resolve) alerts."""
+        return self.is_analyst()
+
+    def can_manage_users(self):
+        """Check if user can manage other users."""
+        return self.is_admin()
+
+    def can_manage_settings(self):
+        """Check if user can manage system settings."""
+        return self.is_admin()
+
+
+class RustbucketAccess(models.Model):
+    """
+    Defines per-rustbucket access permissions for users.
+
+    This model allows fine-grained control over which rustbuckets
+    a user can access when they don't have all_rustbuckets_access.
+    """
+    from django.contrib.auth.models import User
+
+    ACCESS_LEVEL_CHOICES = [
+        ('view', 'View Only'),
+        ('manage', 'Manage (view + manage alerts)'),
+        ('admin', 'Admin (full control)'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='rustbucket_access',
+        help_text="The user granted access"
+    )
+
+    rustbucket = models.ForeignKey(
+        Rustbucket,
+        on_delete=models.CASCADE,
+        related_name='user_access',
+        help_text="The rustbucket the user has access to"
+    )
+
+    access_level = models.CharField(
+        max_length=20,
+        choices=ACCESS_LEVEL_CHOICES,
+        default='view',
+        help_text="Level of access the user has to this rustbucket"
+    )
+
+    granted_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='access_grants',
+        help_text="The user who granted this access"
+    )
+
+    granted_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When access was granted"
+    )
+
+    class Meta:
+        verbose_name = 'Rustbucket Access'
+        verbose_name_plural = 'Rustbucket Access'
+        unique_together = ['user', 'rustbucket']
+        ordering = ['user__username', 'rustbucket__name']
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.rustbucket.name} ({self.get_access_level_display()})"
+
+    def can_view(self):
+        """Check if this access level allows viewing."""
+        return self.access_level in ('view', 'manage', 'admin')
+
+    def can_manage(self):
+        """Check if this access level allows managing alerts."""
+        return self.access_level in ('manage', 'admin')
+
+    def is_admin(self):
+        """Check if this access level is admin."""
+        return self.access_level == 'admin'
+
+
+class AuditLog(models.Model):
+    """
+    Tracks user actions for security auditing.
+
+    Records who did what, when, and on which resource.
+    """
+    from django.contrib.auth.models import User
+
+    ACTION_CHOICES = [
+        ('login', 'User Login'),
+        ('logout', 'User Logout'),
+        ('view', 'View Resource'),
+        ('create', 'Create Resource'),
+        ('update', 'Update Resource'),
+        ('delete', 'Delete Resource'),
+        ('resolve_alert', 'Resolve Alert'),
+        ('grant_access', 'Grant Access'),
+        ('revoke_access', 'Revoke Access'),
+        ('change_role', 'Change User Role'),
+        ('export', 'Export Data'),
+        ('api_access', 'API Access'),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_logs',
+        help_text="The user who performed the action"
+    )
+
+    action = models.CharField(
+        max_length=50,
+        choices=ACTION_CHOICES,
+        help_text="The action performed"
+    )
+
+    resource_type = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Type of resource affected (e.g., 'rustbucket', 'alert', 'user')"
+    )
+
+    resource_id = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        help_text="ID of the resource affected"
+    )
+
+    details = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Additional details about the action"
+    )
+
+    ip_address = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="IP address of the user"
+    )
+
+    user_agent = models.TextField(
+        null=True,
+        blank=True,
+        help_text="User agent string from the request"
+    )
+
+    timestamp = models.DateTimeField(
+        default=timezone.now,
+        db_index=True,
+        help_text="When the action occurred"
+    )
+
+    success = models.BooleanField(
+        default=True,
+        help_text="Whether the action was successful"
+    )
+
+    class Meta:
+        verbose_name = 'Audit Log'
+        verbose_name_plural = 'Audit Logs'
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['user', 'timestamp']),
+            models.Index(fields=['action', 'timestamp']),
+            models.Index(fields=['resource_type', 'resource_id']),
+        ]
+
+    def __str__(self):
+        username = self.user.username if self.user else 'Anonymous'
+        return f"{username} - {self.action} - {self.timestamp}"
+
+    @classmethod
+    def log(cls, user, action, resource_type=None, resource_id=None,
+            details=None, request=None, success=True):
+        """
+        Convenience method to create an audit log entry.
+
+        Args:
+            user: User performing the action
+            action: Action type (from ACTION_CHOICES)
+            resource_type: Type of resource affected
+            resource_id: ID of affected resource
+            details: Additional details dict
+            request: HTTP request object (to extract IP and user agent)
+            success: Whether action was successful
+
+        Returns:
+            AuditLog instance
+        """
+        ip_address = None
+        user_agent = None
+
+        if request:
+            # Get IP address
+            x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
+            if x_forwarded_for:
+                ip_address = x_forwarded_for.split(',')[0].strip()
+            else:
+                ip_address = request.META.get('REMOTE_ADDR')
+
+            user_agent = request.META.get('HTTP_USER_AGENT', '')[:500]
+
+        return cls.objects.create(
+            user=user,
+            action=action,
+            resource_type=resource_type,
+            resource_id=str(resource_id) if resource_id else None,
+            details=details or {},
+            ip_address=ip_address,
+            user_agent=user_agent,
+            success=success
+        )

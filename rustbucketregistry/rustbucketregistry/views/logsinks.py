@@ -10,9 +10,16 @@ from datetime import datetime, timedelta
 import json
 from django.shortcuts import render
 from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 import re
 
 from rustbucketregistry.views.home import get_bucket_data
+from rustbucketregistry.permissions import (
+    filter_rustbuckets_for_user,
+    rustbucket_access_required,
+    get_user_profile,
+    user_can_access_rustbucket,
+)
 
 
 def generate_log_entry(log_type, bucket_id):
@@ -484,13 +491,17 @@ def get_health_status(error_count, warning_count):
         return "excellent - no significant issues"
 
 
+@login_required
+@rustbucket_access_required('view')
 def logsinks_view(request, bucket_id=None):
     """Displays aggregated logsink data.
-    
+
+    Shows only logsinks for rustbuckets the user has access to.
+
     Args:
         request: The HTTP request object.
         bucket_id: Optional bucket ID to filter by.
-        
+
     Returns:
         HttpResponse: The rendered template response or 404 if bucket not found.
     """
@@ -500,8 +511,13 @@ def logsinks_view(request, bucket_id=None):
         raise Http404("Bucket not found")
     from rustbucketregistry.models import LogSink, HoneypotActivity
 
-    # Get actual logsink data from the database
-    logsinks_db = LogSink.objects.select_related('rustbucket').prefetch_related('alerts').all()
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get actual logsink data from the database, filtered by access
+    logsinks_db = LogSink.objects.select_related('rustbucket').prefetch_related('alerts').filter(
+        rustbucket__in=accessible_rustbuckets
+    )
 
     # If we don't have any real data yet, generate sample data
     if not logsinks_db.exists():
@@ -535,13 +551,15 @@ def logsinks_view(request, bucket_id=None):
     # Generate Claude analysis of logs
     summary = analyze_logs_with_claude(logsinks)
 
-    # Get honeypot activities from the database
-    honeypot_activities_db = HoneypotActivity.objects.select_related('rustbucket').all()
+    # Get honeypot activities from the database, filtered by access
+    honeypot_activities_db = HoneypotActivity.objects.select_related('rustbucket').filter(
+        rustbucket__in=accessible_rustbuckets
+    )
 
     # If we don't have any real data yet, generate sample data
     if not honeypot_activities_db.exists():
-        # Get bucket data for honeypot activity
-        buckets = get_bucket_data()
+        # Get bucket data for honeypot activity (filtered by user access)
+        buckets = get_bucket_data(request.user)
         # Generate honeypot activity data
         honeypot_activities = generate_honeypot_activity(buckets)
     else:
@@ -570,16 +588,20 @@ def logsinks_view(request, bucket_id=None):
     return render(request, 'logsinks.html', context)
 
 
+@login_required
+@rustbucket_access_required('view')
 def logsink_api(request, bucket_id=None):
     """API endpoint for fetching logsink data or creating new logsinks.
-    
+
+    Returns only logsinks for rustbuckets the user has access to.
+
     Args:
         request: The HTTP request object.
         bucket_id: Optional bucket ID to filter by.
-        
+
     Returns:
         JsonResponse: JSON response with logsink data.
-        
+
     Methods:
         GET: Get existing logsinks.
         POST: Create a new logsink (returns 201 status code).
@@ -589,8 +611,13 @@ def logsink_api(request, bucket_id=None):
         return JsonResponse({"status": "success"}, status=201)
     from rustbucketregistry.models import LogSink, Rustbucket
 
-    # Get actual logsink data from the database
-    logsinks_query = LogSink.objects.select_related('rustbucket').prefetch_related('alerts', 'entries')
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get actual logsink data from the database, filtered by access
+    logsinks_query = LogSink.objects.select_related('rustbucket').prefetch_related('alerts', 'entries').filter(
+        rustbucket__in=accessible_rustbuckets
+    )
 
     if bucket_id:
         try:
@@ -641,20 +668,29 @@ def logsink_api(request, bucket_id=None):
     return JsonResponse(logsinks, safe=False)
 
 
+@login_required
+@rustbucket_access_required('view')
 def honeypot_api(request, bucket_id=None):
     """API endpoint for fetching honeypot activity data.
-    
+
+    Returns only honeypot activities for rustbuckets the user has access to.
+
     Args:
         request: The HTTP request object.
         bucket_id: Optional bucket ID to filter by.
-        
+
     Returns:
         JsonResponse: JSON response with honeypot activity data.
     """
     from rustbucketregistry.models import HoneypotActivity, Rustbucket
 
-    # Get honeypot activities from the database
-    activities_query = HoneypotActivity.objects.select_related('rustbucket')
+    # Get accessible rustbuckets for the user
+    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+
+    # Get honeypot activities from the database, filtered by access
+    activities_query = HoneypotActivity.objects.select_related('rustbucket').filter(
+        rustbucket__in=accessible_rustbuckets
+    )
 
     if bucket_id:
         try:
@@ -666,7 +702,7 @@ def honeypot_api(request, bucket_id=None):
 
     # If we don't have any real data yet, generate sample data
     if not activities_query.exists():
-        buckets = get_bucket_data()
+        buckets = get_bucket_data(request.user)
         honeypot_activities = generate_honeypot_activity(buckets)
         if bucket_id:
             honeypot_activities = [activity for activity in honeypot_activities if activity['bucket_id'] == bucket_id]

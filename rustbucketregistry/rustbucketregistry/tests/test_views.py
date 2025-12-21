@@ -70,21 +70,27 @@ class HomeViewsTest(TestCase, TestDataMixin):
 
 class LogSinksViewTest(TestCase):
     """Tests for logsinks views."""
-    
+
     def setUp(self):
         """Set up test data and client."""
         self.client = Client()
-        
-        # Create a test user for authentication
+
+        # Create a test user for authentication with admin access
         from django.contrib.auth.models import User
+        from rustbucketregistry.models import UserProfile
         self.test_user = User.objects.create_user(
             username='testuser2',
             password='testpass2'
         )
-        
+        # Create admin profile for full access
+        UserProfile.objects.update_or_create(
+            user=self.test_user,
+            defaults={'role': 'admin', 'all_rustbuckets_access': True}
+        )
+
         # Login the test client
         self.client.login(username='testuser2', password='testpass2')
-        
+
         self.rustbucket = Rustbucket.objects.create(
             name="test-rustbucket",
             ip_address="192.168.1.1",
