@@ -72,6 +72,70 @@
         .custom-range button:hover {
             background-color: #1976D2;
         }
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: auto;
+            padding-left: 20px;
+            border-left: 1px solid #ddd;
+        }
+        .auto-refresh label {
+            font-weight: normal;
+            font-size: 14px;
+        }
+        .toggle-switch {
+            position: relative;
+            width: 44px;
+            height: 24px;
+        }
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 24px;
+        }
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+        }
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: #4CAF50;
+        }
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(20px);
+        }
+        .refresh-indicator {
+            font-size: 12px;
+            color: #666;
+        }
+        .refresh-indicator.active {
+            color: #4CAF50;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .refreshing {
+            animation: pulse 1s ease-in-out;
+        }
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
@@ -256,6 +320,19 @@
                 <input type="datetime-local" id="end-date">
                 <button onclick="applyCustomRange()">Apply</button>
             </div>
+            <div class="auto-refresh">
+                <label for="auto-refresh-toggle">Auto-refresh</label>
+                <div class="toggle-switch">
+                    <input type="checkbox" id="auto-refresh-toggle" onchange="toggleAutoRefresh()">
+                    <span class="toggle-slider"></span>
+                </div>
+                <select id="refresh-interval" onchange="updateRefreshInterval()">
+                    <option value="30">30s</option>
+                    <option value="60" selected>1m</option>
+                    <option value="300">5m</option>
+                </select>
+                <span id="refresh-indicator" class="refresh-indicator"></span>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -320,6 +397,80 @@
 
         // Current time range
         let currentRange = '7d';
+
+        // Auto-refresh state
+        let autoRefreshInterval = null;
+        let refreshIntervalSeconds = 60;
+        let countdownInterval = null;
+        let secondsUntilRefresh = 0;
+
+        function toggleAutoRefresh() {
+            const toggle = document.getElementById('auto-refresh-toggle');
+            const indicator = document.getElementById('refresh-indicator');
+
+            if (toggle.checked) {
+                startAutoRefresh();
+                indicator.classList.add('active');
+            } else {
+                stopAutoRefresh();
+                indicator.classList.remove('active');
+                indicator.textContent = '';
+            }
+        }
+
+        function updateRefreshInterval() {
+            refreshIntervalSeconds = parseInt(document.getElementById('refresh-interval').value);
+            const toggle = document.getElementById('auto-refresh-toggle');
+            if (toggle.checked) {
+                stopAutoRefresh();
+                startAutoRefresh();
+            }
+        }
+
+        function startAutoRefresh() {
+            secondsUntilRefresh = refreshIntervalSeconds;
+            updateCountdown();
+
+            countdownInterval = setInterval(() => {
+                secondsUntilRefresh--;
+                updateCountdown();
+            }, 1000);
+
+            autoRefreshInterval = setInterval(() => {
+                refreshDashboard();
+                secondsUntilRefresh = refreshIntervalSeconds;
+            }, refreshIntervalSeconds * 1000);
+        }
+
+        function stopAutoRefresh() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+                autoRefreshInterval = null;
+            }
+            if (countdownInterval) {
+                clearInterval(countdownInterval);
+                countdownInterval = null;
+            }
+        }
+
+        function updateCountdown() {
+            const indicator = document.getElementById('refresh-indicator');
+            if (secondsUntilRefresh > 60) {
+                const mins = Math.floor(secondsUntilRefresh / 60);
+                const secs = secondsUntilRefresh % 60;
+                indicator.textContent = `${mins}m ${secs}s`;
+            } else {
+                indicator.textContent = `${secondsUntilRefresh}s`;
+            }
+        }
+
+        function refreshDashboard() {
+            const container = document.querySelector('.container');
+            container.classList.add('refreshing');
+            loadDashboardData().then(() => {
+                setTimeout(() => container.classList.remove('refreshing'), 500);
+            });
+        }
 
         function handleTimeRangeChange() {
             const select = document.getElementById('time-range');
