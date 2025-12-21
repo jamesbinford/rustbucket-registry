@@ -111,8 +111,6 @@ def stop():
 
     This is called when Django shuts down.
     """
-    global scheduler
-
     if scheduler is not None and scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("APScheduler stopped")

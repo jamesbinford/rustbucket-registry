@@ -1,0 +1,4 @@
+
+# Local development
+.venv/
+.idea/

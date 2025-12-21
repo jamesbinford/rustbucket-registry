@@ -395,10 +395,10 @@ def extract_logs_from_buckets():
                 file_name = f"{rustbucket.id}_{timestamp}_logs.txt"
 
                 # Store the logs in S3 bucket if credentials are available
-                if s3_client:
+                if registry_s3_client:
                     try:
                         # Upload the file to S3
-                        s3_client.upload_fileobj(
+                        registry_s3_client.upload_fileobj(
                             BytesIO(response.content),
                             settings.AWS_S3_BUCKET_NAME,
                             file_name
