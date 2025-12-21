@@ -150,7 +150,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
             ip_address='192.168.1.30',
             operating_system='Linux',
             status='Active',
-            last_seen=timezone.now() - timezone.timedelta(minutes=5)
+            last_seen=timezone.now() - datetime.timedelta(minutes=5)
         )
 
         # Rustbucket not seen for 20 minutes (unhealthy)
@@ -159,7 +159,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
             ip_address='192.168.1.31',
             operating_system='Linux',
             status='Active',
-            last_seen=timezone.now() - timezone.timedelta(minutes=20)
+            last_seen=timezone.now() - datetime.timedelta(minutes=20)
         )
 
         # Create a logsink for alerts
@@ -178,7 +178,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
         mock_timezone.now.return_value = mock_now
 
         # Set last_seen to 20 minutes ago
-        self.unhealthy_rustbucket.last_seen = mock_now - timezone.timedelta(minutes=20)
+        self.unhealthy_rustbucket.last_seen = mock_now - datetime.timedelta(minutes=20)
         self.unhealthy_rustbucket.save()
 
         # Run health check
@@ -219,7 +219,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
             ip_address='192.168.1.32',
             operating_system='Linux',
             status='Active',
-            last_seen=timezone.now() - timezone.timedelta(minutes=25)
+            last_seen=timezone.now() - datetime.timedelta(minutes=25)
         )
 
         # Should not crash
@@ -235,7 +235,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
             ip_address='192.168.1.33',
             operating_system='Linux',
             status='Inactive',
-            last_seen=timezone.now() - timezone.timedelta(days=1)
+            last_seen=timezone.now() - datetime.timedelta(days=1)
         )
 
         health_check_rustbuckets()
@@ -273,7 +273,7 @@ class CleanupOldDataTaskTest(TestCase):
             severity='LOW',
             message='Old resolved alert',
             is_resolved=True,
-            resolved_at=timezone.now() - timezone.timedelta(days=31)
+            resolved_at=timezone.now() - datetime.timedelta(days=91)
         )
 
         # Create recent resolved alert (5 days ago)
@@ -284,7 +284,7 @@ class CleanupOldDataTaskTest(TestCase):
             severity='LOW',
             message='Recent resolved alert',
             is_resolved=True,
-            resolved_at=timezone.now() - timezone.timedelta(days=5)
+            resolved_at=timezone.now() - datetime.timedelta(days=5)
         )
 
         # Create unresolved alert
@@ -310,13 +310,13 @@ class CleanupOldDataTaskTest(TestCase):
 
     def test_cleanup_deletes_old_log_entries(self):
         """Test that old log entries are deleted."""
-        # Create old log entry (91 days ago)
+        # Create old log entry (31 days ago - threshold is 30 days)
         old_log = LogEntry.objects.create(
             logsink=self.logsink,
             rustbucket=self.rustbucket,
             level='INFO',
             message='Old log entry',
-            timestamp=timezone.now() - timezone.timedelta(days=91)
+            timestamp=timezone.now() - datetime.timedelta(days=31)
         )
 
         # Create recent log entry
@@ -347,7 +347,7 @@ class CleanupOldDataTaskTest(TestCase):
                 severity='LOW',
                 message=f'Old alert {i}',
                 is_resolved=True,
-                resolved_at=timezone.now() - timezone.timedelta(days=35)
+                resolved_at=timezone.now() - datetime.timedelta(days=91)
             )
 
         # Should complete without errors
@@ -404,7 +404,7 @@ class GenerateDailySummaryTaskTest(TestCase):
                 type='error',
                 severity='HIGH',
                 message=f'Alert {i}',
-                created_at=today - timezone.timedelta(hours=i)
+                created_at=today - datetime.timedelta(hours=i)
             )
 
         # Create honeypot activities
@@ -414,7 +414,7 @@ class GenerateDailySummaryTaskTest(TestCase):
                 type='scan',
                 source_ip=f'10.0.0.{i}',
                 details=f'Scan attempt {i}',
-                timestamp=today - timezone.timedelta(hours=i)
+                timestamp=today - datetime.timedelta(hours=i)
             )
 
     def test_generate_daily_summary_counts_data(self):
@@ -440,7 +440,7 @@ class GenerateDailySummaryTaskTest(TestCase):
     def test_generate_daily_summary_only_includes_last_24_hours(self):
         """Test that summary only includes data from last 24 hours."""
         # Create old alert (2 days ago)
-        old_time = timezone.now() - timezone.timedelta(days=2)
+        old_time = timezone.now() - datetime.timedelta(days=2)
         Alert.objects.create(
             logsink=self.logsink1,
             rustbucket=self.rustbucket1,

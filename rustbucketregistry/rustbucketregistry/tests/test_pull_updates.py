@@ -115,7 +115,7 @@ class PullUpdateTest(TestCase):
         self.assertEqual(result['failed'], 1)
         self.assertEqual(len(result['updates']), 0)
     
-    @patch('rustbucketregistry.api.views.pull_bucket_updates')
+    @patch('rustbucketregistry.views.register.pull_bucket_updates')
     def test_update_buckets_endpoint_authorized(self, mock_pull_updates):
         """Test the update_buckets endpoint with authorized user."""
         # Mock the pull_bucket_updates function

@@ -320,4 +320,4 @@ class SignalIntegrationTest(TestCase):
 
         # Verify it matches our channel's criteria
         from rustbucketregistry.notifications import should_notify
-        self.assertTrue(should_notify(self.email_channel, alert))
+        self.assertTrue(should_notify(alert, self.email_channel))

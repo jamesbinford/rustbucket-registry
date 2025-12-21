@@ -332,24 +332,21 @@ def test_notification_channel(channel):
         dict: Test results with success status and message
     """
     try:
-        # Create a fake test alert
-        from rustbucketregistry.models import Alert
+        # Create a fake test alert using SimpleNamespace to avoid Django ForeignKey validation
+        from types import SimpleNamespace
 
-        test_alert = Alert(
+        test_alert = SimpleNamespace(
             id=0,
             type='test',
             severity='medium',
             message='This is a test notification from Rustbucket Registry. If you receive this, your notification channel is configured correctly!',
             created_at=timezone.now(),
-            is_resolved=False
+            is_resolved=False,
+            rustbucket=SimpleNamespace(
+                id='TEST-000',
+                name='Test Rustbucket'
+            )
         )
-
-        # Add a fake rustbucket reference
-        class FakeRustbucket:
-            id = 'TEST-000'
-            name = 'Test Rustbucket'
-
-        test_alert.rustbucket = FakeRustbucket()
 
         # Send based on channel type
         if channel.channel_type == 'email':

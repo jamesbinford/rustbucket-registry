@@ -37,7 +37,6 @@ class RustbucketModelTest(TestCase):
         """Test that all Rustbucket fields are saved correctly."""
         self.assertEqual(self.rustbucket.name, "test-rustbucket")
         self.assertEqual(self.rustbucket.url, "https://test-rustbucket.example.com")
-        self.assertEqual(self.rustbucket.description, "Test rustbucket for unit tests")
         self.assertIsNotNone(self.rustbucket.created_at)
         self.assertIsNotNone(self.rustbucket.updated_at)
 

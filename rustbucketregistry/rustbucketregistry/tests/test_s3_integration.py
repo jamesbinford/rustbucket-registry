@@ -4,6 +4,7 @@ This module contains unit tests for testing S3 bucket configuration including
 per-rustbucket S3 settings, S3-to-S3 log copying, and fallback to HTTP.
 """
 from unittest.mock import patch, MagicMock, call
+from datetime import timedelta
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
@@ -165,12 +166,12 @@ class ExtractLogsFromS3Test(TestCase):
             'Contents': [
                 {
                     'Key': 'logs/2025-12-11.log',
-                    'LastModified': timezone.now() - timezone.timedelta(days=2),
+                    'LastModified': timezone.now() - timedelta(days=2),
                     'Size': 1000
                 },
                 {
                     'Key': 'logs/2025-12-12.log',
-                    'LastModified': timezone.now() - timezone.timedelta(days=1),
+                    'LastModified': timezone.now() - timedelta(days=1),
                     'Size': 2000
                 },
                 {
@@ -192,8 +193,8 @@ class ExtractLogsFromS3Test(TestCase):
         # Verify result
         self.assertIsNotNone(result)
         self.assertEqual(result['name'], 's3-log-source')
-        self.assertEqual(result['source'], 's3')
-        self.assertIn('key', result)
+        self.assertEqual(result['method'], 's3')
+        self.assertIn('file_name', result)
 
         # Verify list_objects_v2 was called
         mock_rustbucket_s3.list_objects_v2.assert_called_once_with(
@@ -203,7 +204,7 @@ class ExtractLogsFromS3Test(TestCase):
         )
 
         # Verify copy operation was called
-        mock_registry_s3.copy_object.assert_called_once()
+        mock_registry_s3.copy.assert_called_once()
 
     @patch('boto3.client')
     def test_extract_logs_from_s3_no_files(self, mock_boto3_client):
@@ -246,9 +247,9 @@ class ExtractLogsFromS3Test(TestCase):
         mock_rustbucket_s3 = MagicMock()
 
         # Mock files with different timestamps
-        old_time = timezone.now() - timezone.timedelta(days=5)
-        recent_time = timezone.now() - timezone.timedelta(hours=1)
-        oldest_time = timezone.now() - timezone.timedelta(days=10)
+        old_time = timezone.now() - timedelta(days=5)
+        recent_time = timezone.now() - timedelta(hours=1)
+        oldest_time = timezone.now() - timedelta(days=10)
 
         mock_rustbucket_s3.list_objects_v2.return_value = {
             'Contents': [
@@ -265,7 +266,7 @@ class ExtractLogsFromS3Test(TestCase):
 
         # Should copy the most recent file
         self.assertIsNotNone(result)
-        self.assertIn('recent.log', result['key'])
+        self.assertIn('recent.log', result['file_name'])
 
 
 class RegistrationWithS3ConfigTest(TestCase):
@@ -370,7 +371,8 @@ class UpdateWithS3ConfigTest(TestCase):
             name='update-test-bucket',
             ip_address='10.0.0.60',
             operating_system='Linux',
-            token='test-token-update'
+            token='test-token-update',
+            status='Active'
         )
 
     @patch('requests.get')

@@ -139,7 +139,7 @@ class LogExtractionTest(TestCase):
         self.assertEqual(result['failed'], 1)
         self.assertEqual(len(result['logs']), 0)
     
-    @patch('rustbucketregistry.api.views.extract_logs_from_buckets')
+    @patch('rustbucketregistry.views.register.extract_logs_from_buckets')
     def test_extract_logs_endpoint_authorized(self, mock_extract_logs):
         """Test the extract_logs endpoint with authorized user."""
         # Mock the extract_logs_from_buckets function
