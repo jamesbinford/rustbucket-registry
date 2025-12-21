@@ -1,0 +1,40 @@
+# =============================================================================
+# RustBucket Registry - Terraform Variables Example
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values
+# NEVER commit terraform.tfvars to version control!
+# =============================================================================
+
+# AWS Configuration
+aws_region  = "us-east-1"
+environment = "production"
+
+# EC2 Configuration
+ec2_instance_type = "t3.medium"
+ec2_key_name      = "your-ssh-key-name"  # Must exist in AWS
+
+# Database Configuration
+db_instance_class = "db.t3.small"
+db_name           = "rustbucket_registry"
+db_username       = "rustbucket_admin"
+db_password       = "CHANGE_ME_TO_A_STRONG_PASSWORD"  # Use a strong password!
+db_multi_az       = false  # Set to true for production high availability
+
+# Application Configuration
+django_secret_key = "CHANGE_ME_TO_A_RANDOM_50_CHAR_STRING"  # Generate with: python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+domain_name       = "registry.example.com"  # Your domain, or leave empty for IP-only access
+enable_https      = true
+admin_email       = "admin@example.com"
+
+# S3 Configuration
+s3_bucket_name = "your-unique-rustbucket-logs-bucket"  # Must be globally unique
+
+# Notification Configuration (Optional)
+slack_webhook_url = ""  # Slack webhook URL for alerts
+alert_email       = ""  # Email for alert notifications
+
+# Additional Tags
+tags = {
+  Owner       = "YourName"
+  CostCenter  = "Engineering"
+}
