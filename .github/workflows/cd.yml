@@ -1,0 +1,166 @@
+# =============================================================================
+# RustBucket Registry - Continuous Deployment
+# =============================================================================
+# Deploys to AWS EC2 on push to main (after CI passes)
+# Requires the following secrets:
+#   - EC2_HOST: EC2 instance public IP or hostname
+#   - EC2_SSH_KEY: Private SSH key for EC2 access
+#   - EC2_USER: SSH username (usually 'ubuntu')
+# =============================================================================
+
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+
+# Ensure only one deployment runs at a time
+concurrency:
+  group: deployment-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  APP_DIR: /opt/rustbucket-registry
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Run CI First
+  # ---------------------------------------------------------------------------
+  ci:
+    name: Run CI
+    uses: ./.github/workflows/ci.yml
+
+  # ---------------------------------------------------------------------------
+  # Deploy to EC2
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: github.ref == 'refs/heads/main'
+
+    environment:
+      name: ${{ github.event.inputs.environment || 'production' }}
+      url: ${{ vars.APP_URL }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Deploy to EC2
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER || 'ubuntu' }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no ${EC2_USER}@${EC2_HOST} << 'ENDSSH'
+            set -e
+            echo "=========================================="
+            echo "Starting deployment at $(date)"
+            echo "=========================================="
+
+            cd ${{ env.APP_DIR }}
+
+            # Pull latest code
+            echo "Pulling latest changes..."
+            git fetch origin main
+            git reset --hard origin/main
+
+            # Activate virtual environment
+            cd rustbucketregistry
+            source venv/bin/activate
+
+            # Install/update dependencies
+            echo "Installing dependencies..."
+            pip install -q -r requirements.txt
+
+            # Run migrations
+            echo "Running migrations..."
+            python manage.py migrate --noinput
+
+            # Collect static files
+            echo "Collecting static files..."
+            python manage.py collectstatic --noinput
+
+            # Clear cache
+            echo "Clearing cache..."
+            python manage.py shell -c "from django.core.cache import cache; cache.clear()" || true
+
+            # Restart services
+            echo "Restarting services..."
+            sudo systemctl restart rustbucket-registry
+            sudo systemctl reload nginx
+
+            # Health check
+            echo "Running health check..."
+            sleep 5
+            if curl -sf http://localhost:8000/login/ > /dev/null; then
+              echo "Health check passed!"
+            else
+              echo "Health check failed!"
+              sudo journalctl -u rustbucket-registry -n 50
+              exit 1
+            fi
+
+            echo "=========================================="
+            echo "Deployment completed at $(date)"
+            echo "=========================================="
+          ENDSSH
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "::notice::Deployment successful! 🚀"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Deployment failed! Check logs for details."
+
+  # ---------------------------------------------------------------------------
+  # Post-Deployment Smoke Tests
+  # ---------------------------------------------------------------------------
+  smoke-test:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: [deploy]
+
+    steps:
+      - name: Wait for deployment to stabilize
+        run: sleep 10
+
+      - name: Check application health
+        run: |
+          APP_URL="${{ vars.APP_URL || format('http://{0}', secrets.EC2_HOST) }}"
+
+          echo "Testing: ${APP_URL}"
+
+          # Test login page
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${APP_URL}/login/" || echo "000")
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Login page: OK (HTTP ${HTTP_CODE})"
+          else
+            echo "❌ Login page: FAILED (HTTP ${HTTP_CODE})"
+            exit 1
+          fi
+
+      - name: Report status
+        if: always()
+        run: |
+          echo "Smoke tests completed"

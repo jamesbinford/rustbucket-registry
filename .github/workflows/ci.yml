@@ -1,0 +1,185 @@
+# =============================================================================
+# RustBucket Registry - Continuous Integration
+# =============================================================================
+# Runs on all pull requests and pushes to main
+# - Linting and code quality checks
+# - Unit tests with coverage
+# - Security scanning
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Linting and Code Quality
+  # ---------------------------------------------------------------------------
+  lint:
+    name: Lint & Code Quality
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-lint-${{ hashFiles('**/requirements*.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-lint-
+
+      - name: Install linting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install flake8 black isort
+
+      - name: Check code formatting with Black
+        run: |
+          black --check --diff rustbucketregistry/
+        continue-on-error: true
+
+      - name: Check import sorting with isort
+        run: |
+          isort --check-only --diff rustbucketregistry/
+        continue-on-error: true
+
+      - name: Lint with flake8
+        run: |
+          # Stop build on syntax errors or undefined names
+          flake8 rustbucketregistry/ --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Treat all other issues as warnings
+          flake8 rustbucketregistry/ --count --exit-zero --max-complexity=10 --max-line-length=120 --statistics
+
+  # ---------------------------------------------------------------------------
+  # Unit Tests
+  # ---------------------------------------------------------------------------
+  test:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        working-directory: ./rustbucketregistry
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install coverage
+
+      - name: Run migrations
+        working-directory: ./rustbucketregistry
+        env:
+          SECRET_KEY: "test-secret-key-for-ci"
+          USE_SQLITE: "1"
+        run: |
+          python manage.py migrate --noinput
+          python manage.py createcachetable
+
+      - name: Run tests with coverage
+        working-directory: ./rustbucketregistry
+        env:
+          SECRET_KEY: "test-secret-key-for-ci"
+          USE_SQLITE: "1"
+        run: |
+          coverage run --source='rustbucketregistry' manage.py test rustbucketregistry.tests -v 2
+          coverage report -m
+          coverage xml
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./rustbucketregistry/coverage.xml
+          flags: unittests
+          name: codecov-py${{ matrix.python-version }}
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Security Scanning
+  # ---------------------------------------------------------------------------
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety
+
+      - name: Run Bandit security linter
+        run: |
+          bandit -r rustbucketregistry/rustbucketregistry -f json -o bandit-report.json || true
+          bandit -r rustbucketregistry/rustbucketregistry -ll
+        continue-on-error: true
+
+      - name: Check dependencies for vulnerabilities
+        working-directory: ./rustbucketregistry
+        run: |
+          safety check -r requirements.txt --output text || true
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Docker Build Test
+  # ---------------------------------------------------------------------------
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./rustbucketregistry
+          push: false
+          tags: rustbucket-registry:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
