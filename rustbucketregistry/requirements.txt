@@ -20,3 +20,6 @@ APScheduler==3.10.4
 
 # Production web server
 gunicorn==21.2.0
+
+# IP geolocation for dashboard
+geoip2==4.8.0

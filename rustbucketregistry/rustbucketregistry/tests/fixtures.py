@@ -171,14 +171,12 @@ class TestDataMixin:
         self.rustbucket1 = create_test_rustbucket(
             name="test-rustbucket-1",
             url="https://test1.example.com",
-            description="Test rustbucket 1",
             ip_address="192.168.1.1"
         )
-        
+
         self.rustbucket2 = create_test_rustbucket(
-            name="test-rustbucket-2", 
+            name="test-rustbucket-2",
             url="https://test2.example.com",
-            description="Test rustbucket 2",
             ip_address="192.168.1.2"
         )
         
