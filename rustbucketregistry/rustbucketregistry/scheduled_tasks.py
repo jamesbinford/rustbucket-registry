@@ -82,7 +82,7 @@ def health_check_rustbuckets():
             if rustbucket.last_seen < threshold:
                 # Check if we already have an unresolved alert for this
                 existing_alert = Alert.objects.filter(
-                    rustbucket=rustbucket,
+                    logsink__rustbucket=rustbucket,
                     message__contains='not responding',
                     is_resolved=False
                 ).first()
@@ -102,7 +102,6 @@ def health_check_rustbuckets():
                     # Create a new alert
                     Alert.objects.create(
                         logsink=logsink,
-                        rustbucket=rustbucket,
                         type='warning',
                         severity='HIGH',
                         message=f'Rustbucket {rustbucket.name} is not responding (last seen: {rustbucket.last_seen})',

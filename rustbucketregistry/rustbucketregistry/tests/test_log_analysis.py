@@ -45,7 +45,6 @@ class LogAnalysisCommandTest(TransactionTestCase):
         for i in range(5):
             log_entry = LogEntry.objects.create(
                 logsink=self.log_sink,
-                rustbucket=self.rustbucket,
                 level="ERROR",
                 message=f"Test error message {i}",
                 timestamp=timezone.now() - timedelta(hours=1)  # Within the analysis window
@@ -163,7 +162,6 @@ class LogAnalysisCommandTest(TransactionTestCase):
         LogEntry.objects.all().delete()
         old_log = LogEntry.objects.create(
             logsink=self.log_sink,
-            rustbucket=self.rustbucket,
             level="ERROR",
             message="Old error message",
             timestamp=timezone.now() - timedelta(days=1)  # Outside the analysis window

@@ -89,23 +89,21 @@ def create_test_logsink(rustbucket, log_type="Info", size="5MB",
     return LogSink.objects.create(**defaults)
 
 
-def create_test_log_entry(logsink, rustbucket, level="INFO", 
+def create_test_log_entry(logsink, level="INFO",
                          message="Test log message", **kwargs):
     """Creates a test log entry.
-    
+
     Args:
         logsink: The log sink to associate with the log entry.
-        rustbucket: The rustbucket to associate with the log entry.
         level: Log level.
         message: Log message.
         **kwargs: Additional fields to set on the log entry.
-        
+
     Returns:
         LogEntry: The created test log entry.
     """
     defaults = {
         'logsink': logsink,
-        'rustbucket': rustbucket,
         'level': level,
         'message': message
     }
@@ -113,24 +111,22 @@ def create_test_log_entry(logsink, rustbucket, level="INFO",
     return LogEntry.objects.create(**defaults)
 
 
-def create_test_alert(logsink, rustbucket, severity="MEDIUM", 
+def create_test_alert(logsink, severity="MEDIUM",
                      alert_type="info", message="Test alert", **kwargs):
     """Creates a test alert.
-    
+
     Args:
         logsink: The log sink to associate with the alert.
-        rustbucket: The rustbucket to associate with the alert.
         severity: Alert severity.
         alert_type: Type of alert.
         message: Alert message.
         **kwargs: Additional fields to set on the alert.
-        
+
     Returns:
         Alert: The created test alert.
     """
     defaults = {
         'logsink': logsink,
-        'rustbucket': rustbucket,
         'severity': severity,
         'type': alert_type,
         'message': message
@@ -229,23 +225,20 @@ class TestDataMixin:
         
         create_test_log_entry(
             logsink=self.logsink1,
-            rustbucket=self.rustbucket1,
             level="INFO",
             message="Test log message 1",
             source_ip="192.168.1.1"
         )
-        
+
         create_test_log_entry(
             logsink=self.logsink2,
-            rustbucket=self.rustbucket1,
             level="ERROR",
             message="Test error message",
             source_ip="192.168.1.2"
         )
-        
+
         create_test_alert(
             logsink=self.logsink2,
-            rustbucket=self.rustbucket1,
             severity="HIGH",
             alert_type="error",
             message="Test alert"

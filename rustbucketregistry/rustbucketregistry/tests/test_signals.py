@@ -58,7 +58,6 @@ class AlertSignalTest(TestCase):
         # Create a new alert (this should trigger the signal)
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Signal test alert'
@@ -73,7 +72,6 @@ class AlertSignalTest(TestCase):
         # Create an alert first
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Original message'
@@ -95,7 +93,6 @@ class AlertSignalTest(TestCase):
         # Create an alert
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='To be resolved'
@@ -117,7 +114,6 @@ class AlertSignalTest(TestCase):
         # Create first alert
         alert1 = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='First alert'
@@ -126,7 +122,6 @@ class AlertSignalTest(TestCase):
         # Create second alert
         alert2 = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='warning',
             severity='MEDIUM',
             message='Second alert'
@@ -145,7 +140,6 @@ class AlertSignalTest(TestCase):
         try:
             alert = Alert.objects.create(
                 logsink=self.logsink,
-                rustbucket=self.rustbucket,
                 type='error',
                 severity='HIGH',
                 message='Test alert'
@@ -179,7 +173,6 @@ class SignalHandlerDirectTest(TestCase):
         """Test calling alert_created_handler directly with created=True."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='HIGH',
             severity='HIGH',
             message='Direct test'
@@ -199,7 +192,6 @@ class SignalHandlerDirectTest(TestCase):
         """Test calling alert_created_handler directly with created=False."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='HIGH',
             severity='HIGH',
             message='Direct test'
@@ -262,7 +254,6 @@ class SignalWithNoChannelsTest(TestCase):
         # Create alert
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='info',
             severity='LOW',
             message='No channels test'
@@ -307,7 +298,6 @@ class SignalIntegrationTest(TestCase):
         # Create a high severity alert
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Integration test alert'

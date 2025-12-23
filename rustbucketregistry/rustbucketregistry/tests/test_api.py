@@ -168,7 +168,7 @@ class LogEntryAPITest(TestCase):
         self.assertEqual(response.status_code, 201)
         
         # Verify logs were created in the database
-        logs = LogEntry.objects.filter(rustbucket=self.rustbucket)
+        logs = LogEntry.objects.filter(logsink__rustbucket=self.rustbucket)
         self.assertEqual(logs.count(), 2)
         self.assertEqual(logs.filter(level='INFO').count(), 1)
         self.assertEqual(logs.filter(level='ERROR').count(), 1)
@@ -229,7 +229,7 @@ class HoneypotActivityAPITest(TestCase):
         
         # Verify activity was created in the database
         activity = HoneypotActivity.objects.get(rustbucket=self.rustbucket)
-        self.assertEqual(activity.activity_type, 'SSH_BRUTEFORCE')
+        self.assertEqual(activity.type, 'SSH_BRUTEFORCE')
         self.assertEqual(activity.source_ip, '10.0.0.1')
         # Convert JSON string back to dict if needed
         try:

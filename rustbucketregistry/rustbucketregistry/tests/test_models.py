@@ -97,7 +97,6 @@ class LogEntryModelTest(TestCase):
 
         self.logentry = LogEntry.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             level="INFO",
             message="Test log message",
             source_ip="192.168.1.1"
@@ -110,7 +109,7 @@ class LogEntryModelTest(TestCase):
     
     def test_logentry_fields(self):
         """Test that all LogEntry fields are saved correctly."""
-        self.assertEqual(self.logentry.rustbucket, self.rustbucket)
+        self.assertEqual(self.logentry.logsink.rustbucket, self.rustbucket)
         self.assertEqual(self.logentry.level, "INFO")
         self.assertEqual(self.logentry.message, "Test log message")
         self.assertEqual(self.logentry.source_ip, "192.168.1.1")
@@ -138,7 +137,6 @@ class AlertModelTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             severity="HIGH",
             type="error",
             message="Test alert message"
@@ -151,7 +149,7 @@ class AlertModelTest(TestCase):
     
     def test_alert_fields(self):
         """Test that all Alert fields are saved correctly."""
-        self.assertEqual(self.alert.rustbucket, self.rustbucket)
+        self.assertEqual(self.alert.logsink.rustbucket, self.rustbucket)
         self.assertEqual(self.alert.severity, "HIGH")
         self.assertEqual(self.alert.message, "Test alert message")
         self.assertIsNotNone(self.alert.created_at)
@@ -172,7 +170,6 @@ class HoneypotActivityModelTest(TestCase):
         self.activity = HoneypotActivity.objects.create(
             rustbucket=self.rustbucket,
             type="SSH_BRUTEFORCE",
-            activity_type="SSH_BRUTEFORCE",
             source_ip="10.0.0.1",
             details=json.dumps({"attempts": 15, "username": "root"})
         )
@@ -185,7 +182,7 @@ class HoneypotActivityModelTest(TestCase):
     def test_honeypotactivity_fields(self):
         """Test that all HoneypotActivity fields are saved correctly."""
         self.assertEqual(self.activity.rustbucket, self.rustbucket)
-        self.assertEqual(self.activity.activity_type, "SSH_BRUTEFORCE")
+        self.assertEqual(self.activity.type, "SSH_BRUTEFORCE")
         self.assertEqual(self.activity.source_ip, "10.0.0.1")
 
         # Check details - either parse JSON or verify string contains expected content

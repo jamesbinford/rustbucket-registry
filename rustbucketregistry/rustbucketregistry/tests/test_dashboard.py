@@ -212,7 +212,6 @@ class DashboardAlertsApiTest(TestCase, TestDataMixin):
         for i in range(3):
             create_test_alert(
                 self.logsink1,
-                self.rustbucket1,
                 severity='HIGH',
                 alert_type='error',
                 message=f'Error alert {i}'
@@ -220,7 +219,6 @@ class DashboardAlertsApiTest(TestCase, TestDataMixin):
         for i in range(5):
             create_test_alert(
                 self.logsink1,
-                self.rustbucket1,
                 severity='MEDIUM',
                 alert_type='warning',
                 message=f'Warning alert {i}'

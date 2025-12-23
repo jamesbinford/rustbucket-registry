@@ -186,7 +186,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
 
         # Check if alert was created
         alerts = Alert.objects.filter(
-            rustbucket=self.unhealthy_rustbucket,
+            logsink__rustbucket=self.unhealthy_rustbucket,
             message__icontains='not responding'
         )
 
@@ -199,13 +199,13 @@ class HealthCheckRustbucketsTaskTest(TestCase):
         self.healthy_rustbucket.save()
 
         initial_alert_count = Alert.objects.filter(
-            rustbucket=self.healthy_rustbucket
+            logsink__rustbucket=self.healthy_rustbucket
         ).count()
 
         health_check_rustbuckets()
 
         final_alert_count = Alert.objects.filter(
-            rustbucket=self.healthy_rustbucket
+            logsink__rustbucket=self.healthy_rustbucket
         ).count()
 
         # No new alerts should be created
@@ -241,7 +241,7 @@ class HealthCheckRustbucketsTaskTest(TestCase):
         health_check_rustbuckets()
 
         # No alerts should be created for inactive bucket
-        alerts = Alert.objects.filter(rustbucket=inactive_bucket)
+        alerts = Alert.objects.filter(logsink__rustbucket=inactive_bucket)
         self.assertEqual(alerts.count(), 0)
 
 
@@ -268,7 +268,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Create old resolved alert (31 days ago)
         old_resolved = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='info',
             severity='LOW',
             message='Old resolved alert',
@@ -279,7 +278,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Create recent resolved alert (5 days ago)
         recent_resolved = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='info',
             severity='LOW',
             message='Recent resolved alert',
@@ -290,7 +288,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Create unresolved alert
         unresolved = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Unresolved alert',
@@ -313,7 +310,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Create old log entry (31 days ago - threshold is 30 days)
         old_log = LogEntry.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             level='INFO',
             message='Old log entry',
             timestamp=timezone.now() - datetime.timedelta(days=31)
@@ -322,7 +318,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Create recent log entry
         recent_log = LogEntry.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             level='INFO',
             message='Recent log entry',
             timestamp=timezone.now()
@@ -342,7 +337,6 @@ class CleanupOldDataTaskTest(TestCase):
         for i in range(5):
             Alert.objects.create(
                 logsink=self.logsink,
-                rustbucket=self.rustbucket,
                 type='info',
                 severity='LOW',
                 message=f'Old alert {i}',
@@ -400,7 +394,6 @@ class GenerateDailySummaryTaskTest(TestCase):
         for i in range(3):
             Alert.objects.create(
                 logsink=self.logsink1,
-                rustbucket=self.rustbucket1,
                 type='error',
                 severity='HIGH',
                 message=f'Alert {i}',
@@ -443,7 +436,6 @@ class GenerateDailySummaryTaskTest(TestCase):
         old_time = timezone.now() - datetime.timedelta(days=2)
         Alert.objects.create(
             logsink=self.logsink1,
-            rustbucket=self.rustbucket1,
             type='error',
             severity='HIGH',
             message='Old alert',

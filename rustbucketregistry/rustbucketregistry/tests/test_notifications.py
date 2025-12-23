@@ -141,7 +141,6 @@ class ShouldNotifyTest(TestCase):
         """Test that high severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='HIGH',
             severity='HIGH',
             message='High severity alert'
@@ -156,7 +155,6 @@ class ShouldNotifyTest(TestCase):
         """Test that medium severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='MEDIUM',
             severity='MEDIUM',
             message='Medium severity alert'
@@ -173,7 +171,6 @@ class ShouldNotifyTest(TestCase):
         """Test that low severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='LOW',
             severity='LOW',
             message='Low severity alert'
@@ -188,7 +185,6 @@ class ShouldNotifyTest(TestCase):
         """Test that alert type filtering works correctly."""
         error_alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='MEDIUM',
             message='Error alert'
@@ -196,7 +192,6 @@ class ShouldNotifyTest(TestCase):
 
         warning_alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='warning',
             severity='MEDIUM',
             message='Warning alert'
@@ -204,7 +199,6 @@ class ShouldNotifyTest(TestCase):
 
         info_alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='info',
             severity='LOW',
             message='Info alert'
@@ -257,7 +251,6 @@ class EmailNotificationTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Critical system failure'
@@ -326,7 +319,6 @@ class SlackNotificationTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Database connection lost'
@@ -411,7 +403,6 @@ class WebhookNotificationTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='HIGH',
             severity='HIGH',
             message='Disk space critically low'
@@ -502,7 +493,6 @@ class SendAlertNotificationTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='error',
             severity='HIGH',
             message='Test alert'
@@ -557,7 +547,6 @@ class SendAlertNotificationTest(TestCase):
         # Create a low severity alert
         low_alert = Alert.objects.create(
             logsink=self.logsink,
-            rustbucket=self.rustbucket,
             type='info',
             severity='LOW',
             message='Low severity test'

@@ -110,7 +110,6 @@ class Command(BaseCommand):
                             # Create the log entry
                             LogEntry.objects.create(
                                 logsink=log_sink,
-                                rustbucket=rustbucket,
                                 level=log_level,
                                 message=log_message,
                                 source_ip=log_data.get('source_ip')
@@ -132,7 +131,6 @@ class Command(BaseCommand):
                             
                             LogEntry.objects.create(
                                 logsink=log_sink,
-                                rustbucket=rustbucket,
                                 level='INFO',
                                 message=line
                             )

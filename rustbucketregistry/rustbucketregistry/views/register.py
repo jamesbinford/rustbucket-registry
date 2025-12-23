@@ -688,7 +688,6 @@ def submit_logs(request):
             log_entry = LogEntry(
                 logsink=logsink,
                 message=message,
-                rustbucket=rustbucket,
                 level=level
             )
 

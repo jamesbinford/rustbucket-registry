@@ -42,9 +42,9 @@ class Command(BaseCommand):
                 )
             """)
         
-        # Get all rustbuckets with logs
+        # Get all rustbuckets with logs (via logsink entries)
         rustbuckets = Rustbucket.objects.filter(
-            log_entries__isnull=False
+            logsinks__entries__isnull=False
         ).distinct()
         
         processed_count = 0
@@ -55,7 +55,7 @@ class Command(BaseCommand):
                 # Get logs from the last 4 hours for this rustbucket
                 cutoff_time = timezone.now() - timedelta(hours=settings.LOG_ANALYSIS_INTERVAL_HOURS)
                 logs = LogEntry.objects.filter(
-                    rustbucket=rustbucket,
+                    logsink__rustbucket=rustbucket,
                     timestamp__gte=cutoff_time
                 ).order_by('timestamp')
                 

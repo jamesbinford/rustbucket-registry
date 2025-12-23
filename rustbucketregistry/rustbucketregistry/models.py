@@ -278,16 +278,6 @@ class LogEntry(models.Model):
         help_text="The logsink this entry belongs to"
     )
 
-    # For backward compatibility with tests
-    rustbucket = models.ForeignKey(
-        Rustbucket,
-        on_delete=models.CASCADE,
-        related_name='log_entries',
-        null=True,
-        blank=True,
-        help_text="The rustbucket this entry belongs to (for backward compatibility)"
-    )
-
     # For test compatibility - log level field
     level = models.CharField(
         max_length=20,
@@ -330,16 +320,6 @@ class Alert(models.Model):
         on_delete=models.CASCADE,
         related_name='alerts',
         help_text="The logsink this alert belongs to"
-    )
-
-    # For backward compatibility with tests
-    rustbucket = models.ForeignKey(
-        Rustbucket,
-        on_delete=models.CASCADE,
-        related_name='alerts',
-        null=True,
-        blank=True,
-        help_text="The rustbucket this alert belongs to (for backward compatibility)"
     )
 
     ALERT_TYPE_CHOICES = [
@@ -418,14 +398,6 @@ class HoneypotActivity(models.Model):
         help_text="Type of activity"
     )
 
-    # For backward compatibility with tests
-    activity_type = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        help_text="Activity type (for backward compatibility)"
-    )
-    
     source_ip = models.GenericIPAddressField(
         help_text="Source IP of the activity"
     )
@@ -443,12 +415,6 @@ class HoneypotActivity(models.Model):
         ordering = ['-timestamp']
         verbose_name = 'Honeypot Activity'
         verbose_name_plural = 'Honeypot Activities'
-
-    def save(self, *args, **kwargs):
-        # Keep activity_type in sync with type for backward compatibility
-        if self.type and not self.activity_type:
-            self.activity_type = self.type
-        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.type} from {self.source_ip}"

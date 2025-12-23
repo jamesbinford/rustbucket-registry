@@ -145,7 +145,9 @@ def send_email_notification(alert, config):
         # Build email content
         subject = f'Rustbucket Alert: {alert.type.upper() if alert.type else "ALERT"}'
 
-        rustbucket_name = alert.rustbucket.name if alert.rustbucket else 'Unknown'
+        # Access rustbucket through logsink relationship
+        rustbucket = alert.logsink.rustbucket if alert.logsink else None
+        rustbucket_name = rustbucket.name if rustbucket else 'Unknown'
 
         message = f"""
 Rustbucket Alert Notification
@@ -207,8 +209,10 @@ def send_slack_notification(alert, config):
         else:
             color = 'good'  # Green
 
-        rustbucket_name = alert.rustbucket.name if alert.rustbucket else 'Unknown'
-        rustbucket_id = alert.rustbucket.id if alert.rustbucket else 'N/A'
+        # Access rustbucket through logsink relationship
+        rustbucket = alert.logsink.rustbucket if alert.logsink else None
+        rustbucket_name = rustbucket.name if rustbucket else 'Unknown'
+        rustbucket_id = rustbucket.id if rustbucket else 'N/A'
 
         # Build Slack message payload
         payload = {
@@ -290,6 +294,9 @@ def send_webhook_notification(alert, config):
             **custom_headers
         }
 
+        # Access rustbucket through logsink relationship
+        rustbucket = alert.logsink.rustbucket if alert.logsink else None
+
         # Build payload
         payload = {
             'alert_id': alert.id,
@@ -299,9 +306,9 @@ def send_webhook_notification(alert, config):
             'is_resolved': alert.is_resolved,
             'created_at': alert.created_at.isoformat(),
             'rustbucket': {
-                'id': alert.rustbucket.id if alert.rustbucket else None,
-                'name': alert.rustbucket.name if alert.rustbucket else None,
-            } if alert.rustbucket else None
+                'id': rustbucket.id if rustbucket else None,
+                'name': rustbucket.name if rustbucket else None,
+            } if rustbucket else None
         }
 
         # Send webhook
@@ -335,6 +342,10 @@ def test_notification_channel(channel):
         # Create a fake test alert using SimpleNamespace to avoid Django ForeignKey validation
         from types import SimpleNamespace
 
+        test_rustbucket = SimpleNamespace(
+            id='TEST-000',
+            name='Test Rustbucket'
+        )
         test_alert = SimpleNamespace(
             id=0,
             type='test',
@@ -342,10 +353,7 @@ def test_notification_channel(channel):
             message='This is a test notification from Rustbucket Registry. If you receive this, your notification channel is configured correctly!',
             created_at=timezone.now(),
             is_resolved=False,
-            rustbucket=SimpleNamespace(
-                id='TEST-000',
-                name='Test Rustbucket'
-            )
+            logsink=SimpleNamespace(rustbucket=test_rustbucket)
         )
 
         # Send based on channel type
