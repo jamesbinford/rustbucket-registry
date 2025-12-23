@@ -760,6 +760,9 @@ class AuditLog(models.Model):
         ('change_role', 'Change User Role'),
         ('export', 'Export Data'),
         ('api_access', 'API Access'),
+        ('create_api_key', 'Create API Key'),
+        ('revoke_api_key', 'Revoke API Key'),
+        ('regenerate_api_key', 'Regenerate API Key'),
     ]
 
     user = models.ForeignKey(
@@ -875,3 +878,131 @@ class AuditLog(models.Model):
             user_agent=user_agent,
             success=success
         )
+
+
+# =============================================================================
+# API Key Management Models
+# =============================================================================
+
+class APIKey(models.Model):
+    """
+    API key for rustbucket authentication (inbound calls to registry).
+
+    Multiple API keys can be created per rustbucket, each with its own
+    name, expiration, and usage tracking.
+    """
+    import secrets
+    from django.contrib.auth.models import User
+
+    # The actual API key value - 32-byte URL-safe token
+    key = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        help_text="The API key value (auto-generated)"
+    )
+
+    # Human-readable name/label for the key
+    name = models.CharField(
+        max_length=255,
+        help_text="Name/label for this API key (e.g., 'Production', 'Development')"
+    )
+
+    # The rustbucket this key belongs to
+    rustbucket = models.ForeignKey(
+        Rustbucket,
+        on_delete=models.CASCADE,
+        related_name='api_keys',
+        help_text="The rustbucket this API key authenticates"
+    )
+
+    # Who created this key
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_api_keys',
+        help_text="The user who created this API key"
+    )
+
+    # Key status
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this API key is active and can be used"
+    )
+
+    # Optional expiration
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this API key expires (null = never expires)"
+    )
+
+    # Usage tracking
+    last_used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this API key was last used"
+    )
+
+    usage_count = models.PositiveIntegerField(
+        default=0,
+        help_text="Number of times this API key has been used"
+    )
+
+    # Timestamps
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When this API key was created"
+    )
+
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        help_text="When this API key was last updated"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'API Key'
+        verbose_name_plural = 'API Keys'
+        indexes = [
+            models.Index(fields=['key']),
+            models.Index(fields=['rustbucket', 'is_active']),
+        ]
+
+    def __str__(self):
+        return f"{self.name} ({self.rustbucket.name})"
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            # Generate a secure, URL-safe token
+            import secrets
+            self.key = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        """Check if this API key is currently valid (active and not expired)."""
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+
+    def record_usage(self):
+        """Record that this API key was used."""
+        self.last_used_at = timezone.now()
+        self.usage_count += 1
+        self.save(update_fields=['last_used_at', 'usage_count'])
+
+    def revoke(self):
+        """Revoke this API key."""
+        self.is_active = False
+        self.save(update_fields=['is_active', 'updated_at'])
+
+    def regenerate(self):
+        """Generate a new key value (invalidates old key)."""
+        import secrets
+        self.key = secrets.token_urlsafe(32)
+        self.save(update_fields=['key', 'updated_at'])
+        return self.key

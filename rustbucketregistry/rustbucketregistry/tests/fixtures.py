@@ -5,7 +5,7 @@ for creating test data used across multiple test modules.
 """
 from django.contrib.auth.models import User
 from django.utils import timezone
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, UserProfile
+from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, UserProfile, APIKey
 
 
 def create_test_user(username='testuser', password='testpass', is_staff=False, is_admin=True):
@@ -140,18 +140,18 @@ def create_test_alert(logsink, rustbucket, severity="MEDIUM",
     return Alert.objects.create(**defaults)
 
 
-def create_test_honeypot_activity(rustbucket, activity_type="scan", 
-                                 source_ip="192.168.1.100", 
+def create_test_honeypot_activity(rustbucket, activity_type="scan",
+                                 source_ip="192.168.1.100",
                                  details="Test activity", **kwargs):
     """Creates a test honeypot activity.
-    
+
     Args:
         rustbucket: The rustbucket to associate with the activity.
         activity_type: Type of honeypot activity.
         source_ip: Source IP address.
         details: Activity details.
         **kwargs: Additional fields to set on the activity.
-        
+
     Returns:
         HoneypotActivity: The created test honeypot activity.
     """
@@ -163,6 +163,27 @@ def create_test_honeypot_activity(rustbucket, activity_type="scan",
     }
     defaults.update(kwargs)
     return HoneypotActivity.objects.create(**defaults)
+
+
+def create_test_api_key(rustbucket, name="Test API Key", user=None, **kwargs):
+    """Creates a test API key.
+
+    Args:
+        rustbucket: The rustbucket to associate with the key.
+        name: Name/label for the key.
+        user: The user who created the key.
+        **kwargs: Additional fields to set on the key.
+
+    Returns:
+        APIKey: The created test API key.
+    """
+    defaults = {
+        'name': name,
+        'rustbucket': rustbucket,
+        'created_by': user,
+    }
+    defaults.update(kwargs)
+    return APIKey.objects.create(**defaults)
 
 
 class TestDataMixin:

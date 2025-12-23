@@ -39,6 +39,12 @@ from rustbucketregistry.views.dashboard import (
     dashboard_resources_api,
     dashboard_targets_api,
 )
+from rustbucketregistry.views.api_keys import (
+    list_api_keys,
+    create_api_key,
+    revoke_api_key,
+    rotate_api_key,
+)
 
 # Main URL patterns
 urlpatterns = [
@@ -79,4 +85,11 @@ urlpatterns = [
     path('api/dashboard/resources/', dashboard_resources_api, name='dashboard_resources_api'),
     path('api/dashboard/resources/<str:bucket_id>/', dashboard_resources_api, name='dashboard_resources_api_detail'),
     path('api/dashboard/targets/', dashboard_targets_api, name='dashboard_targets_api'),
+
+    # API Key Management (RBAC applied in views)
+    path('api/keys/', list_api_keys, name='list_api_keys'),
+    path('api/keys/<str:rustbucket_id>/', list_api_keys, name='list_api_keys_by_rustbucket'),
+    path('api/keys/<str:rustbucket_id>/create/', create_api_key, name='create_api_key'),
+    path('api/keys/<int:api_key_id>/revoke/', revoke_api_key, name='revoke_api_key'),
+    path('api/keys/<int:api_key_id>/rotate/', rotate_api_key, name='rotate_api_key'),
 ]

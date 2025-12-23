@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (
     Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, NotificationChannel,
-    UserProfile, RustbucketAccess, AuditLog
+    UserProfile, RustbucketAccess, AuditLog, APIKey
 )
 
 
@@ -37,6 +37,20 @@ class HoneypotActivityInline(admin.TabularInline):
     extra = 0
 
 
+class APIKeyInline(admin.TabularInline):
+    """Inline admin for API keys on Rustbucket page"""
+    model = APIKey
+    extra = 0
+    readonly_fields = ('key', 'created_at', 'last_used_at', 'usage_count', 'created_by')
+    fields = ('name', 'key', 'is_active', 'expires_at', 'last_used_at', 'usage_count', 'created_by')
+
+    def has_change_permission(self, request, obj=None):
+        return True
+
+    def has_add_permission(self, request, obj=None):
+        return True
+
+
 @admin.register(Rustbucket)
 class RustbucketAdmin(admin.ModelAdmin):
     """Admin view for Rustbucket"""
@@ -63,7 +77,7 @@ class RustbucketAdmin(admin.ModelAdmin):
             'fields': ('registered_at', 'last_seen', 'last_log_dump')
         }),
     )
-    inlines = [LogSinkInline, HoneypotActivityInline]
+    inlines = [LogSinkInline, HoneypotActivityInline, APIKeyInline]
 
 
 @admin.register(LogSink)
@@ -315,3 +329,101 @@ class AuditLogAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         """Only superusers can delete audit logs"""
         return request.user.is_superuser
+
+
+# =============================================================================
+# API Key Admin Configuration
+# =============================================================================
+
+@admin.register(APIKey)
+class APIKeyAdmin(admin.ModelAdmin):
+    """Admin view for API Keys"""
+    list_display = ('name', 'rustbucket', 'is_active', 'expires_at', 'last_used_at', 'usage_count', 'created_at')
+    list_filter = ('is_active', 'rustbucket', 'created_at', 'expires_at')
+    search_fields = ('name', 'rustbucket__name', 'rustbucket__id')
+    readonly_fields = ('key', 'created_at', 'updated_at', 'last_used_at', 'usage_count', 'created_by')
+    raw_id_fields = ('rustbucket',)
+    date_hierarchy = 'created_at'
+    actions = ['revoke_keys', 'regenerate_keys', 'activate_keys']
+
+    fieldsets = (
+        ('Key Information', {
+            'fields': ('name', 'key', 'rustbucket')
+        }),
+        ('Status', {
+            'fields': ('is_active', 'expires_at')
+        }),
+        ('Usage', {
+            'fields': ('last_used_at', 'usage_count'),
+            'classes': ('collapse',)
+        }),
+        ('Audit', {
+            'fields': ('created_by', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        """Set created_by to current user on create"""
+        if not change:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+        # Log the action
+        AuditLog.log(
+            user=request.user,
+            action='create_api_key' if not change else 'update',
+            resource_type='api_key',
+            resource_id=obj.id,
+            details={'name': obj.name, 'rustbucket': obj.rustbucket.id},
+            request=request
+        )
+
+    def revoke_keys(self, request, queryset):
+        """Revoke selected API keys"""
+        count = 0
+        for api_key in queryset:
+            api_key.revoke()
+            AuditLog.log(
+                user=request.user,
+                action='revoke_api_key',
+                resource_type='api_key',
+                resource_id=api_key.id,
+                details={'name': api_key.name, 'rustbucket': api_key.rustbucket.id},
+                request=request
+            )
+            count += 1
+        self.message_user(request, f"Revoked {count} API key(s)", level=messages.SUCCESS)
+    revoke_keys.short_description = "Revoke selected API keys"
+
+    def regenerate_keys(self, request, queryset):
+        """Regenerate selected API keys"""
+        count = 0
+        for api_key in queryset:
+            old_key_prefix = api_key.key[:8] + '...'
+            api_key.regenerate()
+            AuditLog.log(
+                user=request.user,
+                action='regenerate_api_key',
+                resource_type='api_key',
+                resource_id=api_key.id,
+                details={
+                    'name': api_key.name,
+                    'rustbucket': api_key.rustbucket.id,
+                    'old_key_prefix': old_key_prefix
+                },
+                request=request
+            )
+            count += 1
+        self.message_user(
+            request,
+            f"Regenerated {count} API key(s). View each key to see new values.",
+            level=messages.WARNING
+        )
+    regenerate_keys.short_description = "Regenerate selected API keys (invalidates old keys)"
+
+    def activate_keys(self, request, queryset):
+        """Activate selected API keys"""
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f"Activated {updated} API key(s)", level=messages.SUCCESS)
+    activate_keys.short_description = "Activate selected API keys"

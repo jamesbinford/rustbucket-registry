@@ -395,3 +395,121 @@ class PermissionMixin:
         request.user_profile = profile
 
         return super().dispatch(request, *args, **kwargs)
+
+
+# =============================================================================
+# API Key Authentication
+# =============================================================================
+
+def get_api_key_from_request(request):
+    """
+    Extract API key from request headers or body.
+
+    Supports:
+    - Authorization: Bearer <api_key>
+    - Authorization: ApiKey <api_key>
+    - X-API-Key: <api_key>
+    - api_key in JSON body
+
+    Args:
+        request: HTTP request object
+
+    Returns:
+        str: The API key or None if not found
+    """
+    # Check Authorization header
+    auth_header = request.META.get('HTTP_AUTHORIZATION', '')
+    if auth_header:
+        if auth_header.startswith('Bearer '):
+            return auth_header[7:]
+        elif auth_header.startswith('ApiKey '):
+            return auth_header[7:]
+
+    # Check X-API-Key header
+    api_key = request.META.get('HTTP_X_API_KEY')
+    if api_key:
+        return api_key
+
+    # Check JSON body (for POST requests)
+    if request.method in ('POST', 'PUT', 'PATCH'):
+        try:
+            import json
+            body = json.loads(request.body)
+            if isinstance(body, dict) and 'api_key' in body:
+                return body['api_key']
+        except (json.JSONDecodeError, TypeError, ValueError):
+            pass
+
+    return None
+
+
+def validate_api_key(api_key_value):
+    """
+    Validate an API key and return the associated rustbucket.
+
+    Args:
+        api_key_value: The API key string
+
+    Returns:
+        tuple: (APIKey instance, Rustbucket instance) or (None, None) if invalid
+    """
+    from rustbucketregistry.models import APIKey
+
+    if not api_key_value:
+        return None, None
+
+    try:
+        api_key = APIKey.objects.select_related('rustbucket').get(key=api_key_value)
+        if api_key.is_valid():
+            api_key.record_usage()
+            return api_key, api_key.rustbucket
+    except APIKey.DoesNotExist:
+        pass
+
+    return None, None
+
+
+def api_key_required(view_func):
+    """
+    Decorator that requires a valid API key for the request.
+
+    On success, adds 'api_key' and 'rustbucket' to the request object.
+
+    Usage:
+        @api_key_required
+        def my_api_view(request):
+            # request.api_key and request.rustbucket are available
+            ...
+    """
+    @functools.wraps(view_func)
+    def wrapper(request, *args, **kwargs):
+        api_key_value = get_api_key_from_request(request)
+
+        if not api_key_value:
+            return JsonResponse({
+                'success': False,
+                'message': 'Missing API key'
+            }, status=401)
+
+        api_key, rustbucket = validate_api_key(api_key_value)
+
+        if not api_key:
+            # Log failed authentication attempt
+            AuditLog.log(
+                user=None,
+                action='api_access',
+                details={'error': 'Invalid or expired API key'},
+                request=request,
+                success=False
+            )
+            return JsonResponse({
+                'success': False,
+                'message': 'Invalid or expired API key'
+            }, status=401)
+
+        # Attach to request for use in view
+        request.api_key = api_key
+        request.rustbucket = rustbucket
+
+        return view_func(request, *args, **kwargs)
+    return wrapper

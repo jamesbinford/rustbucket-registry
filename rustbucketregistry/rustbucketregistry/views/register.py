@@ -17,6 +17,7 @@ from io import BytesIO
 from django.conf import settings
 
 from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+from rustbucketregistry.permissions import get_api_key_from_request, validate_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -513,13 +514,12 @@ def extract_logs(request):
 
 
 @require_GET
-def get_rustbucket(request, rustbucket_id=None, api_key=None):
+def get_rustbucket(request, rustbucket_id=None):
     """Gets rustbucket information.
 
     Args:
         request: The HTTP request object.
         rustbucket_id: Optional rustbucket ID.
-        api_key: Optional API key.
 
     Returns:
         JsonResponse: JSON response with rustbucket information.
@@ -533,31 +533,33 @@ def get_rustbucket(request, rustbucket_id=None, api_key=None):
                     'success': False,
                     'message': "Rustbucket not found"
                 }, status=404)
-        elif api_key:
-            try:
-                rustbucket = Rustbucket.objects.get(api_key=api_key)
-            except Rustbucket.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'message': "Invalid API key"
-                }, status=401)
         else:
-            # Return all rustbuckets (limited information)
-            rustbuckets = Rustbucket.objects.all()
-            rustbucket_list = [{
-                'id': rb.id,
-                'name': rb.name,
-                'status': rb.status,
-                'last_seen': rb.last_seen.isoformat() if rb.last_seen else None
-            } for rb in rustbuckets]
+            # Try API key authentication for getting own rustbucket info
+            api_key_value = get_api_key_from_request(request)
+            if api_key_value:
+                api_key, rustbucket = validate_api_key(api_key_value)
+                if not api_key:
+                    return JsonResponse({
+                        'success': False,
+                        'message': "Invalid API key"
+                    }, status=401)
+            else:
+                # Return all rustbuckets (limited information) - for authenticated users
+                rustbuckets = Rustbucket.objects.all()
+                rustbucket_list = [{
+                    'id': rb.id,
+                    'name': rb.name,
+                    'status': rb.status,
+                    'last_seen': rb.last_seen.isoformat() if rb.last_seen else None
+                } for rb in rustbuckets]
 
-            return JsonResponse({
-                'success': True,
-                'count': len(rustbucket_list),
-                'rustbuckets': rustbucket_list
-            })
+                return JsonResponse({
+                    'success': True,
+                    'count': len(rustbucket_list),
+                    'rustbuckets': rustbucket_list
+                })
 
-        # Direct rustbucket response for test compatibility
+        # Direct rustbucket response
         response = {
             'id': rustbucket.id,
             'name': rustbucket.name,
@@ -573,10 +575,6 @@ def get_rustbucket(request, rustbucket_id=None, api_key=None):
             'last_seen': rustbucket.last_seen.isoformat() if rustbucket.last_seen else None,
             'last_log_dump': rustbucket.last_log_dump.isoformat() if rustbucket.last_log_dump else None
         }
-
-        # Only include API key if it matches the request
-        if api_key and str(rustbucket.api_key) == api_key:
-            response['api_key'] = api_key
 
         return JsonResponse(response)
 
@@ -594,7 +592,7 @@ def submit_logs(request):
 
     Expected JSON payload:
     {
-        "api_key": "required",
+        "api_key": "required (or use Authorization header)",
         "logs": [
             {
                 "type": "required - Error, Warning, Info, Debug",
@@ -604,6 +602,8 @@ def submit_logs(request):
             ...
         ]
     }
+
+    Authentication: API key via Authorization header, X-API-Key header, or api_key in body
 
     Args:
         request: The HTTP POST request object.
@@ -633,7 +633,13 @@ def submit_logs(request):
                 }, status=404)
         else:
             # Regular API usage with authentication
-            if 'api_key' not in data:
+            api_key_value = get_api_key_from_request(request)
+
+            # Backward compatibility: check body for api_key
+            if not api_key_value and 'api_key' in data:
+                api_key_value = data['api_key']
+
+            if not api_key_value:
                 return JsonResponse({
                     'success': False,
                     'message': "Missing required field: api_key"
@@ -647,10 +653,9 @@ def submit_logs(request):
 
             logs_data = data['logs']
 
-            # Get rustbucket
-            try:
-                rustbucket = Rustbucket.objects.get(api_key=data['api_key'])
-            except Rustbucket.DoesNotExist:
+            # Validate API key
+            api_key, rustbucket = validate_api_key(api_key_value)
+            if not api_key:
                 return JsonResponse({
                     'success': False,
                     'message': "Invalid API key"
@@ -733,7 +738,7 @@ def report_honeypot_activity(request):
 
     Expected JSON payload:
     {
-        "api_key": "required",
+        "api_key": "required (or use Authorization header)",
         "activity": {
             "type": "required - scan, exploit, bruteforce, malware",
             "source_ip": "required",
@@ -741,6 +746,8 @@ def report_honeypot_activity(request):
             "timestamp": "optional - ISO format date"
         }
     }
+
+    Authentication: API key via Authorization header, X-API-Key header, or api_key in body
 
     Args:
         request: The HTTP POST request object.
@@ -764,7 +771,13 @@ def report_honeypot_activity(request):
                 }, status=404)
         else:
             # Regular API usage with authentication
-            if 'api_key' not in data:
+            api_key_value = get_api_key_from_request(request)
+
+            # Backward compatibility: check body for api_key
+            if not api_key_value and 'api_key' in data:
+                api_key_value = data['api_key']
+
+            if not api_key_value:
                 return JsonResponse({
                     'success': False,
                     'message': "Missing required field: api_key"
@@ -785,10 +798,9 @@ def report_honeypot_activity(request):
                         'message': f"Missing required activity field: {field}"
                     }, status=400)
 
-            # Get rustbucket
-            try:
-                rustbucket = Rustbucket.objects.get(api_key=data['api_key'])
-            except Rustbucket.DoesNotExist:
+            # Validate API key
+            api_key, rustbucket = validate_api_key(api_key_value)
+            if not api_key:
                 return JsonResponse({
                     'success': False,
                     'message': "Invalid API key"
