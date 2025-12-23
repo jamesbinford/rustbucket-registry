@@ -133,8 +133,7 @@ def create_test_alert(logsink, rustbucket, severity="MEDIUM",
         'rustbucket': rustbucket,
         'severity': severity,
         'type': alert_type,
-        'message': message,
-        'source': 'Test'
+        'message': message
     }
     defaults.update(kwargs)
     return Alert.objects.create(**defaults)
@@ -249,6 +248,5 @@ class TestDataMixin:
             rustbucket=self.rustbucket1,
             severity="HIGH",
             alert_type="error",
-            message="Test alert",
-            source="Security Scan"
+            message="Test alert"
         )

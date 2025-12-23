@@ -141,8 +141,7 @@ class AlertModelTest(TestCase):
             rustbucket=self.rustbucket,
             severity="HIGH",
             type="error",
-            message="Test alert message",
-            source="Intrusion Detection"
+            message="Test alert message"
         )
     
     def test_alert_creation(self):
@@ -155,9 +154,8 @@ class AlertModelTest(TestCase):
         self.assertEqual(self.alert.rustbucket, self.rustbucket)
         self.assertEqual(self.alert.severity, "HIGH")
         self.assertEqual(self.alert.message, "Test alert message")
-        self.assertEqual(self.alert.source, "Intrusion Detection")
-        self.assertIsNotNone(self.alert.timestamp)
-        self.assertFalse(self.alert.resolved)
+        self.assertIsNotNone(self.alert.created_at)
+        self.assertFalse(self.alert.is_resolved)
 
 
 class HoneypotActivityModelTest(TestCase):

@@ -364,13 +364,6 @@ class Alert(models.Model):
         help_text="Alert severity (for backward compatibility)"
     )
 
-    # For backward compatibility with tests
-    source = models.CharField(
-        max_length=50,
-        null=True,
-        blank=True,
-        help_text="Alert source (for backward compatibility)"
-    )
 
     message = models.CharField(
         max_length=255,
@@ -391,16 +384,6 @@ class Alert(models.Model):
         help_text="Whether the alert has been resolved"
     )
 
-    # For backward compatibility with tests
-    timestamp = models.DateTimeField(
-        default=timezone.now,
-        help_text="Alert timestamp (for backward compatibility)"
-    )
-
-    # For backward compatibility with tests - resolved status
-    @property
-    def resolved(self):
-        return self.is_resolved
 
     class Meta:
         ordering = ['-created_at']
