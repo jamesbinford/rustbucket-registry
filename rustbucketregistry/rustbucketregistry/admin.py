@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (
-    Rustbucket, LogSink, Alert, NotificationChannel,
+    Rustbucket, LogSink, Alert,
     UserProfile, RustbucketAccess, AuditLog, APIKey
 )
 
@@ -89,98 +89,6 @@ class AlertAdmin(admin.ModelAdmin):
         from django.utils import timezone
         queryset.update(is_resolved=True, resolved_at=timezone.now())
     mark_as_resolved.short_description = "Mark selected alerts as resolved"
-
-
-@admin.register(NotificationChannel)
-class NotificationChannelAdmin(admin.ModelAdmin):
-    """Admin view for NotificationChannel"""
-    list_display = ('name', 'channel_type', 'is_active', 'min_severity', 'created_at')
-    list_filter = ('channel_type', 'is_active', 'min_severity')
-    search_fields = ('name',)
-    readonly_fields = ('created_at', 'updated_at')
-    actions = ['test_notification', 'activate_channels', 'deactivate_channels']
-
-    fieldsets = (
-        ('Basic Information', {
-            'fields': ('name', 'channel_type', 'is_active')
-        }),
-        ('Configuration', {
-            'fields': ('config',),
-            'description': 'Configuration JSON. Examples:<br>'
-                          '<strong>Email:</strong> {"recipients": ["admin@example.com", "alerts@example.com"]}<br>'
-                          '<strong>Slack:</strong> {"webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"}<br>'
-                          '<strong>Webhook:</strong> {"url": "https://your-webhook.com/endpoint", "headers": {"X-API-Key": "your-key"}}'
-        }),
-        ('Filters', {
-            'fields': ('min_severity', 'alert_types'),
-            'description': 'Control which alerts trigger notifications. Leave alert_types empty to receive all alert types.'
-        }),
-        ('Timestamps', {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-
-    def test_notification(self, request, queryset):
-        """Send a test notification to selected channels"""
-        from rustbucketregistry.notifications import test_notification_channel
-
-        success_count = 0
-        fail_count = 0
-
-        for channel in queryset:
-            result = test_notification_channel(channel)
-            if result['success']:
-                success_count += 1
-                self.message_user(
-                    request,
-                    f"✓ {channel.name}: {result['message']}",
-                    level=messages.SUCCESS
-                )
-            else:
-                fail_count += 1
-                self.message_user(
-                    request,
-                    f"✗ {channel.name}: {result['message']}",
-                    level=messages.ERROR
-                )
-
-        if success_count > 0:
-            self.message_user(
-                request,
-                f"Successfully sent test to {success_count} channel(s)",
-                level=messages.SUCCESS
-            )
-        if fail_count > 0:
-            self.message_user(
-                request,
-                f"Failed to send test to {fail_count} channel(s)",
-                level=messages.WARNING
-            )
-
-    test_notification.short_description = "Send test notification to selected channels"
-
-    def activate_channels(self, request, queryset):
-        """Activate selected notification channels"""
-        updated = queryset.update(is_active=True)
-        self.message_user(
-            request,
-            f"Successfully activated {updated} channel(s)",
-            level=messages.SUCCESS
-        )
-
-    activate_channels.short_description = "Activate selected channels"
-
-    def deactivate_channels(self, request, queryset):
-        """Deactivate selected notification channels"""
-        updated = queryset.update(is_active=False)
-        self.message_user(
-            request,
-            f"Successfully deactivated {updated} channel(s)",
-            level=messages.SUCCESS
-        )
-
-    deactivate_channels.short_description = "Deactivate selected channels"
 
 
 # =============================================================================
