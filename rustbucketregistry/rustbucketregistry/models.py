@@ -43,7 +43,6 @@ class Rustbucket(models.Model):
     STATUS_CHOICES = [
         ('Active', 'Active'),
         ('Inactive', 'Inactive'),
-        ('Maintenance', 'Maintenance'),
         ('Review', 'Review'),
     ]
     status = models.CharField(
@@ -712,6 +711,7 @@ class AuditLog(models.Model):
         ('create_api_key', 'Create API Key'),
         ('revoke_api_key', 'Revoke API Key'),
         ('regenerate_api_key', 'Regenerate API Key'),
+        ('change_status', 'Change Status'),
     ]
 
     user = models.ForeignKey(

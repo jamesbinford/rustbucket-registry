@@ -49,9 +49,33 @@
             background-color: #ffebee;
             color: #c62828;
         }
-        .status-maintenance {
-            background-color: #fff3e0;
-            color: #ef6c00;
+        .status-review {
+            background-color: #e3f2fd;
+            color: #1565c0;
+        }
+        .status-change-form {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 15px;
+        }
+        .status-change-form select {
+            padding: 5px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        .status-change-form button {
+            padding: 5px 12px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .status-change-form button:hover {
+            background-color: #1976D2;
         }
         .details-grid {
             display: grid;
@@ -90,6 +114,17 @@
             <div class="header-info">
                 <h1 class="bucket-name">{{ bucket.name }}</h1>
                 <span class="status status-{{ bucket.status|lower }}">{{ bucket.status }}</span>
+                {% if can_change_status %}
+                <form method="post" class="status-change-form">
+                    {% csrf_token %}
+                    <select name="status">
+                        {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if value == bucket.status %}selected disabled{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit">Update</button>
+                </form>
+                {% endif %}
             </div>
             <div>
                 <div class="detail-title">ID</div>
