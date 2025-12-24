@@ -88,8 +88,6 @@ python manage.py run_task --list
 python manage.py run_task health_check
 python manage.py run_task pull_updates
 python manage.py run_task extract_logs
-python manage.py run_task cleanup
-python manage.py run_task daily_summary
 ```
 
 ### Notifications
@@ -135,8 +133,6 @@ The project uses **APScheduler** for automated tasks. The scheduler starts autom
 - **Pull Rustbucket Updates** (every 5 minutes): Pulls status updates from all active rustbuckets
 - **Extract Logs** (every 15 minutes): Extracts and stores logs from rustbuckets to S3
 - **Health Check** (every 10 minutes): Monitors rustbucket health and creates alerts for unresponsive buckets
-- **Cleanup Old Data** (daily at 2:00 AM): Deletes old resolved alerts and log entries
-- **Daily Summary** (daily at 8:00 AM): Generates a summary report of activities
 
 ### Configuration
 

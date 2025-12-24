@@ -7,7 +7,6 @@ The scheduler runs in the same process as Django and requires no external servic
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
-from apscheduler.triggers.cron import CronTrigger
 from django.conf import settings
 
 logger = logging.getLogger(__name__)
@@ -38,8 +37,6 @@ def start():
         pull_rustbucket_updates,
         extract_logs_from_rustbuckets,
         health_check_rustbuckets,
-        cleanup_old_data,
-        generate_daily_summary
     )
 
     # Schedule tasks
@@ -71,26 +68,6 @@ def start():
         trigger=IntervalTrigger(minutes=10),
         id='health_check',
         name='Health Check Rustbuckets',
-        replace_existing=True,
-        max_instances=1,
-    )
-
-    # Cleanup old data daily at 2:00 AM
-    scheduler.add_job(
-        cleanup_old_data,
-        trigger=CronTrigger(hour=2, minute=0),
-        id='cleanup_old_data',
-        name='Cleanup Old Data',
-        replace_existing=True,
-        max_instances=1,
-    )
-
-    # Generate daily summary at 8:00 AM
-    scheduler.add_job(
-        generate_daily_summary,
-        trigger=CronTrigger(hour=8, minute=0),
-        id='daily_summary',
-        name='Generate Daily Summary',
         replace_existing=True,
         max_instances=1,
     )

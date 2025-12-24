@@ -1,9 +1,9 @@
 """Tests for scheduled tasks functionality.
 
 This module contains unit tests for testing scheduled tasks including
-pull updates, log extraction, health checks, cleanup, and daily summaries.
+pull updates, log extraction, and health checks.
 """
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock
 from django.test import TestCase
 from django.core.management import call_command
 from django.utils import timezone
@@ -15,8 +15,6 @@ from rustbucketregistry.scheduled_tasks import (
     pull_rustbucket_updates,
     extract_logs_from_rustbuckets,
     health_check_rustbuckets,
-    cleanup_old_data,
-    generate_daily_summary
 )
 
 
@@ -245,173 +243,6 @@ class HealthCheckRustbucketsTaskTest(TestCase):
         self.assertEqual(alerts.count(), 0)
 
 
-class CleanupOldDataTaskTest(TestCase):
-    """Tests for cleanup_old_data scheduled task."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.rustbucket = Rustbucket.objects.create(
-            name='cleanup-test',
-            ip_address='192.168.1.40',
-            operating_system='Linux'
-        )
-
-        self.logsink = LogSink.objects.create(
-            rustbucket=self.rustbucket,
-            log_type='Info',
-            size='10MB',
-            alert_level='low'
-        )
-
-    def test_cleanup_deletes_old_resolved_alerts(self):
-        """Test that old resolved alerts are deleted."""
-        # Create old resolved alert (31 days ago)
-        old_resolved = Alert.objects.create(
-            logsink=self.logsink,
-            type='info',
-            severity='low',
-            message='Old resolved alert',
-            is_resolved=True,
-            resolved_at=timezone.now() - datetime.timedelta(days=91)
-        )
-
-        # Create recent resolved alert (5 days ago)
-        recent_resolved = Alert.objects.create(
-            logsink=self.logsink,
-            type='info',
-            severity='low',
-            message='Recent resolved alert',
-            is_resolved=True,
-            resolved_at=timezone.now() - datetime.timedelta(days=5)
-        )
-
-        # Create unresolved alert
-        unresolved = Alert.objects.create(
-            logsink=self.logsink,
-            type='error',
-            severity='high',
-            message='Unresolved alert',
-            is_resolved=False
-        )
-
-        cleanup_old_data()
-
-        # Old resolved alert should be deleted
-        self.assertFalse(Alert.objects.filter(id=old_resolved.id).exists())
-
-        # Recent resolved alert should still exist
-        self.assertTrue(Alert.objects.filter(id=recent_resolved.id).exists())
-
-        # Unresolved alert should still exist
-        self.assertTrue(Alert.objects.filter(id=unresolved.id).exists())
-
-    def test_cleanup_logs_deletion_counts(self):
-        """Test that cleanup logs the number of deleted items."""
-        # Create multiple old items
-        for i in range(5):
-            Alert.objects.create(
-                logsink=self.logsink,
-                type='info',
-                severity='low',
-                message=f'Old alert {i}',
-                is_resolved=True,
-                resolved_at=timezone.now() - datetime.timedelta(days=91)
-            )
-
-        # Should complete without errors
-        try:
-            cleanup_old_data()
-        except Exception as e:
-            self.fail(f'Cleanup task failed: {e}')
-
-        # Verify alerts were deleted
-        self.assertEqual(Alert.objects.filter(logsink=self.logsink).count(), 0)
-
-
-class GenerateDailySummaryTaskTest(TestCase):
-    """Tests for generate_daily_summary scheduled task."""
-
-    def setUp(self):
-        """Set up test data."""
-        self.rustbucket1 = Rustbucket.objects.create(
-            name='summary-bucket-1',
-            ip_address='192.168.1.50',
-            operating_system='Linux',
-            status='Active'
-        )
-
-        self.rustbucket2 = Rustbucket.objects.create(
-            name='summary-bucket-2',
-            ip_address='192.168.1.51',
-            operating_system='Windows',
-            status='Active'
-        )
-
-        self.logsink1 = LogSink.objects.create(
-            rustbucket=self.rustbucket1,
-            log_type='Error',
-            size='5MB',
-            alert_level='high'
-        )
-
-        self.logsink2 = LogSink.objects.create(
-            rustbucket=self.rustbucket2,
-            log_type='Info',
-            size='3MB',
-            alert_level='low'
-        )
-
-        # Create some data for summary
-        today = timezone.now()
-
-        # Create alerts
-        for i in range(3):
-            Alert.objects.create(
-                logsink=self.logsink1,
-                type='error',
-                severity='high',
-                message=f'Alert {i}',
-                created_at=today - datetime.timedelta(hours=i)
-            )
-
-    def test_generate_daily_summary_counts_data(self):
-        """Test that daily summary counts are calculated correctly."""
-        # Should complete without errors and generate summary
-        try:
-            generate_daily_summary()
-        except Exception as e:
-            self.fail(f'Daily summary generation failed: {e}')
-
-    def test_generate_daily_summary_handles_no_data(self):
-        """Test daily summary with no data for the day."""
-        # Delete all data
-        Alert.objects.all().delete()
-
-        # Should still complete
-        try:
-            generate_daily_summary()
-        except Exception as e:
-            self.fail(f'Daily summary failed with no data: {e}')
-
-    def test_generate_daily_summary_only_includes_last_24_hours(self):
-        """Test that summary only includes data from last 24 hours."""
-        # Create old alert (2 days ago)
-        old_time = timezone.now() - datetime.timedelta(days=2)
-        Alert.objects.create(
-            logsink=self.logsink1,
-            type='error',
-            severity='high',
-            message='Old alert',
-            created_at=old_time
-        )
-
-        # Generate summary - should not crash
-        try:
-            generate_daily_summary()
-        except Exception as e:
-            self.fail(f'Summary generation failed: {e}')
-
-
 class RunTaskManagementCommandTest(TestCase):
     """Tests for the run_task management command."""
 
@@ -453,22 +284,6 @@ class RunTaskManagementCommandTest(TestCase):
 
         mock_task.assert_called_once()
 
-    @patch('rustbucketregistry.scheduled_tasks.cleanup_old_data')
-    def test_run_task_command_cleanup(self, mock_task):
-        """Test running cleanup task via management command."""
-        out = StringIO()
-        call_command('run_task', 'cleanup', stdout=out)
-
-        mock_task.assert_called_once()
-
-    @patch('rustbucketregistry.scheduled_tasks.generate_daily_summary')
-    def test_run_task_command_daily_summary(self, mock_task):
-        """Test running daily_summary task via management command."""
-        out = StringIO()
-        call_command('run_task', 'daily_summary', stdout=out)
-
-        mock_task.assert_called_once()
-
     def test_run_task_command_list_tasks(self):
         """Test listing available tasks."""
         out = StringIO()
@@ -478,8 +293,6 @@ class RunTaskManagementCommandTest(TestCase):
         self.assertIn('pull_updates', output)
         self.assertIn('extract_logs', output)
         self.assertIn('health_check', output)
-        self.assertIn('cleanup', output)
-        self.assertIn('daily_summary', output)
 
     def test_run_task_command_invalid_task(self):
         """Test running command with invalid task name."""

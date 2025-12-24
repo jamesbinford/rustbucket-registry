@@ -7,7 +7,6 @@ monitoring, and data collection tasks.
 import logging
 from datetime import timedelta
 from django.utils import timezone
-from django.db.models import Count
 
 logger = logging.getLogger(__name__)
 
@@ -120,71 +119,3 @@ def health_check_rustbuckets():
 
     except Exception as e:
         logger.error(f"Error checking rustbucket health: {str(e)}", exc_info=True)
-
-
-def cleanup_old_data():
-    """
-    Clean up old data to manage database size.
-
-    This task:
-    - Deletes resolved alerts older than 90 days
-    """
-    try:
-        from rustbucketregistry.models import Alert
-
-        logger.info("Starting data cleanup")
-
-        cleanup_results = {}
-
-        # Delete old resolved alerts (90 days)
-        alert_threshold = timezone.now() - timedelta(days=90)
-        deleted_alerts = Alert.objects.filter(
-            is_resolved=True,
-            resolved_at__lt=alert_threshold
-        ).delete()
-        cleanup_results['alerts_deleted'] = deleted_alerts[0]
-
-        logger.info(
-            f"Data cleanup completed: {cleanup_results['alerts_deleted']} alerts deleted"
-        )
-
-        return cleanup_results
-
-    except Exception as e:
-        logger.error(f"Error during data cleanup: {str(e)}", exc_info=True)
-
-
-def generate_daily_summary():
-    """
-    Generate a daily summary report of system activity.
-
-    This creates a summary of:
-    - New alerts in the last 24 hours
-    - Rustbucket health status
-    """
-    try:
-        from rustbucketregistry.models import Rustbucket, Alert
-
-        logger.info("Generating daily summary report")
-
-        # Get data from the last 24 hours
-        since = timezone.now() - timedelta(days=1)
-
-        # Count new alerts
-        new_alerts = Alert.objects.filter(created_at__gte=since).count()
-
-        # Count active rustbuckets
-        active_rustbuckets = Rustbucket.objects.filter(status='Active').count()
-
-        summary = {
-            'date': timezone.now().date().isoformat(),
-            'new_alerts': new_alerts,
-            'active_rustbuckets': active_rustbuckets,
-        }
-
-        logger.info(f"Daily summary: {new_alerts} new alerts")
-
-        return summary
-
-    except Exception as e:
-        logger.error(f"Error generating daily summary: {str(e)}", exc_info=True)
