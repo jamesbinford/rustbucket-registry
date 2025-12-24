@@ -4,7 +4,7 @@ Capture code quality issues during manual code reviews. Each entry will be expan
 
 ---
 
-## Smell: [short title]
+## Smell: 
 - **Where**: [file path or module]
 - **Issue**: [what's wrong]
 - **Suggestion**: [how it could be improved]
