@@ -27,12 +27,10 @@ class RustbucketS3ConfigurationTest(TestCase):
             operating_system='Linux',
             s3_bucket_name='rustbucket-logs-prod',
             s3_region='us-west-2',
-            s3_access_key_id='AKIAEXAMPLE123',
-            s3_secret_access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
             s3_prefix='logs/production/'
         )
 
-        # Rustbucket with partial S3 configuration (IAM role scenario)
+        # Rustbucket with minimal S3 configuration
         self.iam_rustbucket = Rustbucket.objects.create(
             name='iam-bucket',
             ip_address='192.168.1.101',
@@ -74,32 +72,30 @@ class RustbucketS3ConfigurationTest(TestCase):
         self.assertTrue(partial_bucket.has_s3_configured())
 
     @patch('boto3.client')
-    def test_get_s3_client_with_credentials(self, mock_boto3_client):
-        """Test get_s3_client with access key credentials."""
+    def test_get_s3_client_uses_iam_roles(self, mock_boto3_client):
+        """Test get_s3_client uses IAM roles (no credentials stored)."""
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
         client = self.s3_rustbucket.get_s3_client()
 
-        # Verify boto3.client was called with credentials
+        # Verify boto3.client was called with only region (uses IAM roles)
         mock_boto3_client.assert_called_once_with(
             's3',
-            region_name='us-west-2',
-            aws_access_key_id='AKIAEXAMPLE123',
-            aws_secret_access_key='wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY'
+            region_name='us-west-2'
         )
 
         self.assertEqual(client, mock_client)
 
     @patch('boto3.client')
-    def test_get_s3_client_with_iam_role(self, mock_boto3_client):
-        """Test get_s3_client without credentials (IAM role scenario)."""
+    def test_get_s3_client_different_region(self, mock_boto3_client):
+        """Test get_s3_client with different region."""
         mock_client = MagicMock()
         mock_boto3_client.return_value = mock_client
 
         client = self.iam_rustbucket.get_s3_client()
 
-        # Verify boto3.client was called without explicit credentials
+        # Verify boto3.client was called with correct region
         mock_boto3_client.assert_called_once_with(
             's3',
             region_name='us-east-1'
@@ -150,8 +146,6 @@ class ExtractLogsFromS3Test(TestCase):
             operating_system='Linux',
             s3_bucket_name='source-logs-bucket',
             s3_region='us-west-2',
-            s3_access_key_id='AKIATEST',
-            s3_secret_access_key='secretkey',
             s3_prefix='logs/'
         )
 
@@ -286,8 +280,6 @@ class RegistrationWithS3ConfigTest(TestCase):
             'token': 'test-token-s3-123',
             's3_bucket_name': 'my-rustbucket-logs',
             's3_region': 'eu-west-1',
-            's3_access_key_id': 'AKIAEXAMPLE',
-            's3_secret_access_key': 'secretkeyexample',
             's3_prefix': 'production/logs/',
             'test_skip_validation': True
         }
@@ -304,19 +296,17 @@ class RegistrationWithS3ConfigTest(TestCase):
         rustbucket = Rustbucket.objects.get(name='s3-enabled-rustbucket')
         self.assertEqual(rustbucket.s3_bucket_name, 'my-rustbucket-logs')
         self.assertEqual(rustbucket.s3_region, 'eu-west-1')
-        self.assertEqual(rustbucket.s3_access_key_id, 'AKIAEXAMPLE')
-        self.assertEqual(rustbucket.s3_secret_access_key, 'secretkeyexample')
         self.assertEqual(rustbucket.s3_prefix, 'production/logs/')
 
-    def test_register_rustbucket_with_partial_s3_config(self):
-        """Test registering with only bucket name and region (IAM role scenario)."""
+    def test_register_rustbucket_with_minimal_s3_config(self):
+        """Test registering with only bucket name and region."""
         url = reverse('register_rustbucket')
         data = {
-            'name': 'iam-rustbucket',
+            'name': 'minimal-s3-rustbucket',
             'ip_address': '10.0.0.51',
             'operating_system': 'Amazon Linux 2',
-            'token': 'test-token-iam-456',
-            's3_bucket_name': 'iam-logs-bucket',
+            'token': 'test-token-minimal-456',
+            's3_bucket_name': 'minimal-logs-bucket',
             's3_region': 'us-east-1',
             'test_skip_validation': True
         }
@@ -329,11 +319,9 @@ class RegistrationWithS3ConfigTest(TestCase):
 
         self.assertEqual(response.status_code, 200)
 
-        rustbucket = Rustbucket.objects.get(name='iam-rustbucket')
-        self.assertEqual(rustbucket.s3_bucket_name, 'iam-logs-bucket')
+        rustbucket = Rustbucket.objects.get(name='minimal-s3-rustbucket')
+        self.assertEqual(rustbucket.s3_bucket_name, 'minimal-logs-bucket')
         self.assertEqual(rustbucket.s3_region, 'us-east-1')
-        self.assertIsNone(rustbucket.s3_access_key_id)
-        self.assertIsNone(rustbucket.s3_secret_access_key)
 
     def test_register_rustbucket_without_s3_config(self):
         """Test registering without S3 configuration (legacy behavior)."""

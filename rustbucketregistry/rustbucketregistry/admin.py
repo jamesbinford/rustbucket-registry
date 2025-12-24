@@ -56,8 +56,8 @@ class RustbucketAdmin(admin.ModelAdmin):
             'fields': ('operating_system', 'cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections')
         }),
         ('S3 Configuration', {
-            'fields': ('s3_bucket_name', 's3_region', 's3_access_key_id', 's3_secret_access_key', 's3_prefix'),
-            'description': 'S3 bucket where this rustbucket stores its logs. The registry will read logs directly from this bucket.',
+            'fields': ('s3_bucket_name', 's3_region', 's3_prefix'),
+            'description': 'S3 bucket where this rustbucket stores its logs. Access uses IAM roles.',
             'classes': ('collapse',)
         }),
         ('Registration Information', {

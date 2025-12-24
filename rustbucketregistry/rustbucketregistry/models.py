@@ -112,18 +112,6 @@ class Rustbucket(models.Model):
         default='us-east-1',
         help_text="AWS region for the S3 bucket"
     )
-    s3_access_key_id = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-        help_text="AWS access key ID for accessing the S3 bucket (optional for same-account access)"
-    )
-    s3_secret_access_key = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-        help_text="AWS secret access key (stored encrypted - use IAM roles in production)"
-    )
     s3_prefix = models.CharField(
         max_length=255,
         null=True,
@@ -178,6 +166,9 @@ class Rustbucket(models.Model):
         """
         Get an S3 client configured for this rustbucket's bucket.
 
+        Uses the default boto3 credential chain (IAM roles, environment
+        variables, etc.) since all rustbuckets are in the same AWS account.
+
         Returns:
             boto3 S3 client or None if not configured
         """
@@ -185,18 +176,7 @@ class Rustbucket(models.Model):
             return None
 
         import boto3
-
-        # Use rustbucket-specific credentials if provided, otherwise use default
-        if self.s3_access_key_id and self.s3_secret_access_key:
-            return boto3.client(
-                's3',
-                region_name=self.s3_region,
-                aws_access_key_id=self.s3_access_key_id,
-                aws_secret_access_key=self.s3_secret_access_key
-            )
-        else:
-            # Use default credentials (IAM role, environment variables, etc.)
-            return boto3.client('s3', region_name=self.s3_region)
+        return boto3.client('s3', region_name=self.s3_region)
 
 
 class LogSink(models.Model):

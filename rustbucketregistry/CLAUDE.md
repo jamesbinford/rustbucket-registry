@@ -129,14 +129,12 @@ See `SCHEDULER_SETUP.md` for full documentation.
 
 ## S3 Bucket Configuration
 
-Each rustbucket can specify its own S3 bucket where it stores logs. The registry can then read logs directly from the rustbucket's S3 bucket (S3-to-S3 copy), which is more efficient than HTTP pulling.
+Each rustbucket can specify its own S3 bucket where it stores logs. The registry reads logs directly from the rustbucket's S3 bucket using IAM roles (all rustbuckets are in the same AWS account).
 
 ### Rustbucket S3 Fields
 
 - **s3_bucket_name**: The name of the S3 bucket where the rustbucket stores logs
 - **s3_region**: AWS region for the bucket (default: us-east-1)
-- **s3_access_key_id**: AWS access key ID (optional if using IAM roles)
-- **s3_secret_access_key**: AWS secret access key (optional if using IAM roles)
 - **s3_prefix**: Folder path in the bucket where logs are stored (default: logs/)
 
 ### How It Works
@@ -153,11 +151,9 @@ Each rustbucket can specify its own S3 bucket where it stores logs. The registry
 
 The S3 fields are visible in Django Admin under the "S3 Configuration" section (collapsed by default).
 
-### Security Notes
+### Security
 
-- **Production**: Use IAM roles instead of storing access keys
-- **Development**: Can provide access keys for testing
-- **Same Account**: If rustbucket and registry are in the same AWS account, credentials may not be needed
+Access to S3 buckets uses IAM roles via the default boto3 credential chain. No credentials are stored in the database.
 
 ## Style Guidelines
 - Use Google's Python Style Guide (https://google.github.io/styleguide/pyguide.html) for Python code.

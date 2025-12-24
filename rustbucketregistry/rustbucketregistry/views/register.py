@@ -40,8 +40,6 @@ def register_rustbucket(request):
         "token": "string",
         "s3_bucket_name": "string",  # optional - S3 bucket for logs
         "s3_region": "string",  # optional - AWS region (default: us-east-1)
-        "s3_access_key_id": "string",  # optional - AWS access key
-        "s3_secret_access_key": "string",  # optional - AWS secret key
         "s3_prefix": "string"  # optional - S3 prefix/folder (default: logs/)
     }
 
@@ -87,7 +85,7 @@ def register_rustbucket(request):
         # Optional fields (including S3 configuration)
         optional_fields = [
             'cpu_usage', 'memory_usage', 'disk_space', 'uptime', 'connections',
-            's3_bucket_name', 's3_region', 's3_access_key_id', 's3_secret_access_key', 's3_prefix'
+            's3_bucket_name', 's3_region', 's3_prefix'
         ]
         for field in optional_fields:
             if field in data:
@@ -149,8 +147,7 @@ def pull_bucket_updates():
                 fields_to_update = [
                     'name', 'operating_system', 'cpu_usage',
                     'memory_usage', 'disk_space', 'uptime', 'connections',
-                    's3_bucket_name', 's3_region', 's3_access_key_id',
-                    's3_secret_access_key', 's3_prefix'
+                    's3_bucket_name', 's3_region', 's3_prefix'
                 ]
 
                 for field in fields_to_update:
