@@ -111,7 +111,7 @@ def create_test_log_entry(logsink, level="INFO",
     return LogEntry.objects.create(**defaults)
 
 
-def create_test_alert(logsink, severity="MEDIUM",
+def create_test_alert(logsink, severity="medium",
                      alert_type="info", message="Test alert", **kwargs):
     """Creates a test alert.
 
@@ -239,7 +239,7 @@ class TestDataMixin:
 
         create_test_alert(
             logsink=self.logsink2,
-            severity="HIGH",
+            severity="high",
             alert_type="error",
             message="Test alert"
         )

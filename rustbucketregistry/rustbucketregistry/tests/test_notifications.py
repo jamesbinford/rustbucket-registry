@@ -133,7 +133,7 @@ class ShouldNotifyTest(TestCase):
             channel_type='email',
             config={'recipients': ['errors@example.com']},
             min_severity='low',
-            alert_types=['error', 'HIGH'],
+            alert_types=['error'],
             is_active=True
         )
 
@@ -141,8 +141,8 @@ class ShouldNotifyTest(TestCase):
         """Test that high severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            type='HIGH',
-            severity='HIGH',
+            type='error',
+            severity='high',
             message='High severity alert'
         )
 
@@ -155,8 +155,8 @@ class ShouldNotifyTest(TestCase):
         """Test that medium severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            type='MEDIUM',
-            severity='MEDIUM',
+            type='warning',
+            severity='medium',
             message='Medium severity alert'
         )
 
@@ -171,8 +171,8 @@ class ShouldNotifyTest(TestCase):
         """Test that low severity alerts notify appropriate channels."""
         alert = Alert.objects.create(
             logsink=self.logsink,
-            type='LOW',
-            severity='LOW',
+            type='info',
+            severity='low',
             message='Low severity alert'
         )
 
@@ -186,21 +186,21 @@ class ShouldNotifyTest(TestCase):
         error_alert = Alert.objects.create(
             logsink=self.logsink,
             type='error',
-            severity='MEDIUM',
+            severity='medium',
             message='Error alert'
         )
 
         warning_alert = Alert.objects.create(
             logsink=self.logsink,
             type='warning',
-            severity='MEDIUM',
+            severity='medium',
             message='Warning alert'
         )
 
         info_alert = Alert.objects.create(
             logsink=self.logsink,
             type='info',
-            severity='LOW',
+            severity='low',
             message='Info alert'
         )
 
@@ -221,8 +221,8 @@ class ShouldNotifyTest(TestCase):
 
         alert = Alert.objects.create(
             logsink=self.logsink,
-            type='HIGH',
-            severity='HIGH',
+            type='error',
+            severity='high',
             message='High severity alert'
         )
 
@@ -252,7 +252,7 @@ class EmailNotificationTest(TestCase):
         self.alert = Alert.objects.create(
             logsink=self.logsink,
             type='error',
-            severity='HIGH',
+            severity='high',
             message='Critical system failure'
         )
 
@@ -320,7 +320,7 @@ class SlackNotificationTest(TestCase):
         self.alert = Alert.objects.create(
             logsink=self.logsink,
             type='error',
-            severity='HIGH',
+            severity='high',
             message='Database connection lost'
         )
 
@@ -403,8 +403,8 @@ class WebhookNotificationTest(TestCase):
 
         self.alert = Alert.objects.create(
             logsink=self.logsink,
-            type='HIGH',
-            severity='HIGH',
+            type='error',
+            severity='high',
             message='Disk space critically low'
         )
 
@@ -494,7 +494,7 @@ class SendAlertNotificationTest(TestCase):
         self.alert = Alert.objects.create(
             logsink=self.logsink,
             type='error',
-            severity='HIGH',
+            severity='high',
             message='Test alert'
         )
 
@@ -548,7 +548,7 @@ class SendAlertNotificationTest(TestCase):
         low_alert = Alert.objects.create(
             logsink=self.logsink,
             type='info',
-            severity='LOW',
+            severity='low',
             message='Low severity test'
         )
 

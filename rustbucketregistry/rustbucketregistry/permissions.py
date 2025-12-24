@@ -3,6 +3,46 @@ Permission decorators and utilities for Role-Based Access Control.
 
 This module provides decorators and helper functions to enforce
 role-based permissions on views and API endpoints.
+
+Decorator Usage Guide:
+
+    @admin_required
+        Use for views that require admin role (user management, settings).
+
+    @analyst_required
+        Use for views requiring analyst role or higher (alert management,
+        data analysis). Includes admins.
+
+    @role_required('role1', 'role2', ...)
+        Use for custom role combinations when admin_required or
+        analyst_required don't fit.
+
+    @rustbucket_access_required('view')
+        Use for views that show rustbucket data. Checks if user has
+        view access to the specific rustbucket.
+
+    @rustbucket_access_required('manage')
+        Use for views that modify rustbucket or alert data. Checks if
+        user has manage access to the specific rustbucket.
+
+    @can_manage_alerts
+        Use for alert resolution/acknowledgment endpoints. Checks if
+        user can manage alerts (analyst role or higher).
+
+    @api_key_required
+        Use for API endpoints called by rustbuckets. Validates API key
+        and attaches the associated rustbucket to the request.
+
+Helper Functions:
+
+    get_user_profile(user)
+        Get or create a UserProfile for a user.
+
+    filter_rustbuckets_for_user(user, queryset=None)
+        Filter a queryset to only rustbuckets the user can access.
+
+    user_can_access_rustbucket(user, rustbucket_id)
+        Check if a user can access a specific rustbucket.
 """
 import functools
 import logging
@@ -338,63 +378,6 @@ def user_can_access_rustbucket(user, rustbucket_id):
         return False
 
     return profile.can_access_rustbucket(rustbucket_id)
-
-
-class PermissionMixin:
-    """
-    Mixin for class-based views that adds permission checking.
-
-    Usage:
-        class MyView(PermissionMixin, View):
-            required_role = 'analyst'  # or None for just login
-
-            def get(self, request):
-                ...
-    """
-    required_role = None
-    required_rustbucket_access = None  # 'view', 'manage', or 'admin'
-
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect('login')
-
-        profile = get_user_profile(request.user)
-        if not profile:
-            return redirect('login')
-
-        # Check role
-        if self.required_role:
-            if self.required_role == 'admin' and not profile.is_admin():
-                messages.error(request, "Administrator access required")
-                return redirect('home')
-            elif self.required_role == 'analyst' and not profile.is_analyst():
-                messages.error(request, "Analyst access required")
-                return redirect('home')
-
-        # Check rustbucket access
-        if self.required_rustbucket_access:
-            bucket_id = kwargs.get('bucket_id') or kwargs.get('rustbucket_id')
-            if bucket_id and not profile.is_admin():
-                if not profile.all_rustbuckets_access:
-                    try:
-                        access = RustbucketAccess.objects.get(
-                            user=request.user,
-                            rustbucket_id=bucket_id
-                        )
-                        if self.required_rustbucket_access == 'manage' and not access.can_manage():
-                            messages.error(request, "Manage access required for this rustbucket")
-                            return redirect('home')
-                        elif self.required_rustbucket_access == 'admin' and not access.is_admin():
-                            messages.error(request, "Admin access required for this rustbucket")
-                            return redirect('home')
-                    except RustbucketAccess.DoesNotExist:
-                        messages.error(request, "You don't have access to this rustbucket")
-                        return redirect('home')
-
-        # Store profile on request for easy access in views
-        request.user_profile = profile
-
-        return super().dispatch(request, *args, **kwargs)
 
 
 # =============================================================================

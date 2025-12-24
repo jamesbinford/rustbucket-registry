@@ -269,7 +269,7 @@ class CleanupOldDataTaskTest(TestCase):
         old_resolved = Alert.objects.create(
             logsink=self.logsink,
             type='info',
-            severity='LOW',
+            severity='low',
             message='Old resolved alert',
             is_resolved=True,
             resolved_at=timezone.now() - datetime.timedelta(days=91)
@@ -279,7 +279,7 @@ class CleanupOldDataTaskTest(TestCase):
         recent_resolved = Alert.objects.create(
             logsink=self.logsink,
             type='info',
-            severity='LOW',
+            severity='low',
             message='Recent resolved alert',
             is_resolved=True,
             resolved_at=timezone.now() - datetime.timedelta(days=5)
@@ -289,7 +289,7 @@ class CleanupOldDataTaskTest(TestCase):
         unresolved = Alert.objects.create(
             logsink=self.logsink,
             type='error',
-            severity='HIGH',
+            severity='high',
             message='Unresolved alert',
             is_resolved=False
         )
@@ -338,7 +338,7 @@ class CleanupOldDataTaskTest(TestCase):
             Alert.objects.create(
                 logsink=self.logsink,
                 type='info',
-                severity='LOW',
+                severity='low',
                 message=f'Old alert {i}',
                 is_resolved=True,
                 resolved_at=timezone.now() - datetime.timedelta(days=91)
@@ -395,7 +395,7 @@ class GenerateDailySummaryTaskTest(TestCase):
             Alert.objects.create(
                 logsink=self.logsink1,
                 type='error',
-                severity='HIGH',
+                severity='high',
                 message=f'Alert {i}',
                 created_at=today - datetime.timedelta(hours=i)
             )
@@ -437,7 +437,7 @@ class GenerateDailySummaryTaskTest(TestCase):
         Alert.objects.create(
             logsink=self.logsink1,
             type='error',
-            severity='HIGH',
+            severity='high',
             message='Old alert',
             created_at=old_time
         )

@@ -1,7 +1,10 @@
 """
 Models for the RustBucket Registry application.
 """
+import secrets
 import uuid
+
+from django.contrib.auth.models import User
 from django.db import models
 from django.utils import timezone
 
@@ -326,22 +329,25 @@ class Alert(models.Model):
         ('error', 'Error'),
         ('warning', 'Warning'),
         ('info', 'Info'),
-        ('HIGH', 'High'),
-        ('MEDIUM', 'Medium'),
-        ('LOW', 'Low'),
     ]
+
+    SEVERITY_CHOICES = [
+        ('high', 'High'),
+        ('medium', 'Medium'),
+        ('low', 'Low'),
+    ]
+
     type = models.CharField(
         max_length=10,
         choices=ALERT_TYPE_CHOICES,
         help_text="Type of alert"
     )
 
-    # For backward compatibility with tests
     severity = models.CharField(
         max_length=10,
-        null=True,
-        blank=True,
-        help_text="Alert severity (for backward compatibility)"
+        choices=SEVERITY_CHOICES,
+        default='low',
+        help_text="Alert severity level"
     )
 
 
@@ -509,8 +515,6 @@ class UserProfile(models.Model):
     - analyst: Can view all data, manage alerts, but cannot manage users/settings
     - viewer: Read-only access to assigned rustbuckets only
     """
-    from django.contrib.auth.models import User
-
     ROLE_CHOICES = [
         ('admin', 'Administrator'),
         ('analyst', 'Analyst'),
@@ -623,8 +627,6 @@ class RustbucketAccess(models.Model):
     This model allows fine-grained control over which rustbuckets
     a user can access when they don't have all_rustbuckets_access.
     """
-    from django.contrib.auth.models import User
-
     ACCESS_LEVEL_CHOICES = [
         ('view', 'View Only'),
         ('manage', 'Manage (view + manage alerts)'),
@@ -694,8 +696,6 @@ class AuditLog(models.Model):
 
     Records who did what, when, and on which resource.
     """
-    from django.contrib.auth.models import User
-
     ACTION_CHOICES = [
         ('login', 'User Login'),
         ('logout', 'User Logout'),
@@ -840,9 +840,6 @@ class APIKey(models.Model):
     Multiple API keys can be created per rustbucket, each with its own
     name, expiration, and usage tracking.
     """
-    import secrets
-    from django.contrib.auth.models import User
-
     # The actual API key value - 32-byte URL-safe token
     key = models.CharField(
         max_length=64,
@@ -923,11 +920,14 @@ class APIKey(models.Model):
     def __str__(self):
         return f"{self.name} ({self.rustbucket.name})"
 
+    @staticmethod
+    def _generate_key():
+        """Generate a secure, URL-safe API key token."""
+        return secrets.token_urlsafe(32)
+
     def save(self, *args, **kwargs):
         if not self.key:
-            # Generate a secure, URL-safe token
-            import secrets
-            self.key = secrets.token_urlsafe(32)
+            self.key = self._generate_key()
         super().save(*args, **kwargs)
 
     def is_valid(self):
@@ -951,7 +951,6 @@ class APIKey(models.Model):
 
     def regenerate(self):
         """Generate a new key value (invalidates old key)."""
-        import secrets
-        self.key = secrets.token_urlsafe(32)
+        self.key = self._generate_key()
         self.save(update_fields=['key', 'updated_at'])
         return self.key

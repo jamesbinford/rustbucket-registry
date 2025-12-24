@@ -212,14 +212,14 @@ class DashboardAlertsApiTest(TestCase, TestDataMixin):
         for i in range(3):
             create_test_alert(
                 self.logsink1,
-                severity='HIGH',
+                severity='high',
                 alert_type='error',
                 message=f'Error alert {i}'
             )
         for i in range(5):
             create_test_alert(
                 self.logsink1,
-                severity='MEDIUM',
+                severity='medium',
                 alert_type='warning',
                 message=f'Warning alert {i}'
             )

@@ -435,9 +435,9 @@ def dashboard_alerts_api(request):
         'error': '#c62828',
         'warning': '#ef6c00',
         'info': '#1565c0',
-        'HIGH': '#b71c1c',
-        'MEDIUM': '#f57c00',
-        'LOW': '#2e7d32'
+        'high': '#b71c1c',
+        'medium': '#f57c00',
+        'low': '#2e7d32'
     }
     colors = [color_map.get(label, '#757575') for label in labels]
 

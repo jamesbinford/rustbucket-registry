@@ -103,7 +103,7 @@ def health_check_rustbuckets():
                     Alert.objects.create(
                         logsink=logsink,
                         type='warning',
-                        severity='HIGH',
+                        severity='high',
                         message=f'Rustbucket {rustbucket.name} is not responding (last seen: {rustbucket.last_seen})',
                         is_resolved=False
                     )
