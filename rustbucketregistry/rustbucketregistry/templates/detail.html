@@ -109,8 +109,8 @@
             </div>
             
             <div class="detail-card">
-                <div class="detail-title">Last Log Dump</div>
-                <div class="detail-value">{{ bucket.last_log_dump }}</div>
+                <div class="detail-title">Last Checkin</div>
+                <div class="detail-value">{{ bucket.last_seen|timesince }} ago</div>
             </div>
             
             <div class="detail-card">

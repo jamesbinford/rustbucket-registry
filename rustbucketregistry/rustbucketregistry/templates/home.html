@@ -75,7 +75,7 @@
                     <th>Bucket Name</th>
                     <th>Status</th>
                     <th>IP Address</th>
-                    <th>Last Log Dump</th>
+                    <th>Last Checkin</th>
                 </tr>
             </thead>
             <tbody>
@@ -85,7 +85,7 @@
                     <td><a href="{% url 'bucket_detail' bucket_id=bucket.id %}">{{ bucket.name }}</a></td>
                     <td class="status-{{ bucket.status|lower }}">{{ bucket.status }}</td>
                     <td>{{ bucket.ip_address }}</td>
-                    <td>{{ bucket.last_log_dump }}</td>
+                    <td>{{ bucket.last_seen|timesince }} ago</td>
                 </tr>
                 {% endfor %}
             </tbody>
