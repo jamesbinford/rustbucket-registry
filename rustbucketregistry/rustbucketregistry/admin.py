@@ -6,7 +6,7 @@ from django.contrib import messages
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (
-    Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, NotificationChannel,
+    Rustbucket, LogSink, Alert, NotificationChannel,
     UserProfile, RustbucketAccess, AuditLog, APIKey
 )
 
@@ -22,19 +22,6 @@ class AlertInline(admin.TabularInline):
     model = Alert
     extra = 0
     fk_name = 'logsink'
-
-
-class LogEntryInline(admin.TabularInline):
-    """Inline admin view for LogEntry"""
-    model = LogEntry
-    extra = 0
-    fk_name = 'logsink'
-
-
-class HoneypotActivityInline(admin.TabularInline):
-    """Inline admin view for HoneypotActivity"""
-    model = HoneypotActivity
-    extra = 0
 
 
 class APIKeyInline(admin.TabularInline):
@@ -77,7 +64,7 @@ class RustbucketAdmin(admin.ModelAdmin):
             'fields': ('registered_at', 'last_seen', 'last_log_dump')
         }),
     )
-    inlines = [LogSinkInline, HoneypotActivityInline, APIKeyInline]
+    inlines = [LogSinkInline, APIKeyInline]
 
 
 @admin.register(LogSink)
@@ -86,22 +73,7 @@ class LogSinkAdmin(admin.ModelAdmin):
     list_display = ('id', 'rustbucket', 'log_type', 'size', 'status', 'alert_level', 'last_update')
     list_filter = ('log_type', 'status', 'alert_level')
     search_fields = ('rustbucket__name', 'rustbucket__id')
-    inlines = [AlertInline, LogEntryInline]
-
-
-@admin.register(LogEntry)
-class LogEntryAdmin(admin.ModelAdmin):
-    """Admin view for LogEntry"""
-    list_display = ('id', 'logsink', 'timestamp', 'message_preview')
-    list_filter = ('timestamp', 'logsink__log_type')
-    search_fields = ('message', 'logsink__rustbucket__name')
-    
-    def message_preview(self, obj):
-        """Return a preview of the message"""
-        if len(obj.message) > 50:
-            return f"{obj.message[:50]}..."
-        return obj.message
-    message_preview.short_description = 'Message'
+    inlines = [AlertInline]
 
 
 @admin.register(Alert)
@@ -117,15 +89,6 @@ class AlertAdmin(admin.ModelAdmin):
         from django.utils import timezone
         queryset.update(is_resolved=True, resolved_at=timezone.now())
     mark_as_resolved.short_description = "Mark selected alerts as resolved"
-
-
-@admin.register(HoneypotActivity)
-class HoneypotActivityAdmin(admin.ModelAdmin):
-    """Admin view for HoneypotActivity"""
-    list_display = ('id', 'rustbucket', 'type', 'source_ip', 'timestamp')
-    list_filter = ('type', 'timestamp')
-    search_fields = ('rustbucket__name', 'source_ip', 'details')
-    readonly_fields = ('timestamp',)
 
 
 @admin.register(NotificationChannel)

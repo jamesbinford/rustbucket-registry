@@ -7,14 +7,13 @@ from django.urls import reverse
 from django.utils import timezone
 from datetime import timedelta
 
-from rustbucketregistry.models import Rustbucket, Alert, HoneypotActivity, LogSink
+from rustbucketregistry.models import Rustbucket, Alert, LogSink
 from rustbucketregistry.tests.fixtures import (
     TestDataMixin,
     create_test_user,
     create_test_rustbucket,
     create_test_logsink,
     create_test_alert,
-    create_test_honeypot_activity
 )
 
 
@@ -54,10 +53,6 @@ class DashboardOverviewApiTest(TestCase, TestDataMixin):
         self.client = Client()
         self.create_basic_test_data()
         self.client.login(username='testuser', password='testpass')
-
-        # Create some honeypot activities for testing
-        create_test_honeypot_activity(self.rustbucket1, 'scan', '10.0.0.1')
-        create_test_honeypot_activity(self.rustbucket1, 'exploit', '10.0.0.2')
 
     def test_overview_api_requires_login(self):
         """Test that the overview API requires authentication."""
@@ -99,20 +94,6 @@ class DashboardAttacksApiTest(TestCase, TestDataMixin):
         self.create_basic_test_data()
         self.client.login(username='testuser', password='testpass')
 
-        # Create honeypot activities
-        for i in range(5):
-            create_test_honeypot_activity(
-                self.rustbucket1,
-                'scan',
-                f'10.0.0.{i}'
-            )
-        for i in range(3):
-            create_test_honeypot_activity(
-                self.rustbucket1,
-                'exploit',
-                f'10.0.1.{i}'
-            )
-
     def test_attacks_api_returns_data(self):
         """Test that the attacks API returns expected data structure."""
         response = self.client.get(reverse('dashboard_attacks_api'))
@@ -142,20 +123,6 @@ class DashboardTopIpsApiTest(TestCase, TestDataMixin):
         self.client = Client()
         self.create_basic_test_data()
         self.client.login(username='testuser', password='testpass')
-
-        # Create activities from specific IPs
-        for i in range(10):
-            create_test_honeypot_activity(
-                self.rustbucket1,
-                'scan',
-                '192.168.1.100'
-            )
-        for i in range(5):
-            create_test_honeypot_activity(
-                self.rustbucket1,
-                'exploit',
-                '10.0.0.50'
-            )
 
     def test_top_ips_api_returns_data(self):
         """Test that the top IPs API returns expected data structure."""
@@ -307,20 +274,6 @@ class DashboardTargetsApiTest(TestCase, TestDataMixin):
         self.client = Client()
         self.create_basic_test_data()
         self.client.login(username='testuser', password='testpass')
-
-        # Create activities targeting specific buckets
-        for i in range(10):
-            create_test_honeypot_activity(
-                self.rustbucket1,
-                'scan',
-                f'10.0.{i}.1'
-            )
-        for i in range(5):
-            create_test_honeypot_activity(
-                self.rustbucket2,
-                'exploit',
-                f'10.1.{i}.1'
-            )
 
     def test_targets_api_returns_data(self):
         """Test that the targets API returns expected data structure."""

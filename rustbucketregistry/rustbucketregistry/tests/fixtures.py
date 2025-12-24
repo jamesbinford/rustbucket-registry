@@ -5,7 +5,7 @@ for creating test data used across multiple test modules.
 """
 from django.contrib.auth.models import User
 from django.utils import timezone
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity, UserProfile, APIKey
+from rustbucketregistry.models import Rustbucket, LogSink, Alert, UserProfile, APIKey
 
 
 def create_test_user(username='testuser', password='testpass', is_staff=False, is_admin=True):
@@ -89,28 +89,6 @@ def create_test_logsink(rustbucket, log_type="Info", size="5MB",
     return LogSink.objects.create(**defaults)
 
 
-def create_test_log_entry(logsink, level="INFO",
-                         message="Test log message", **kwargs):
-    """Creates a test log entry.
-
-    Args:
-        logsink: The log sink to associate with the log entry.
-        level: Log level.
-        message: Log message.
-        **kwargs: Additional fields to set on the log entry.
-
-    Returns:
-        LogEntry: The created test log entry.
-    """
-    defaults = {
-        'logsink': logsink,
-        'level': level,
-        'message': message
-    }
-    defaults.update(kwargs)
-    return LogEntry.objects.create(**defaults)
-
-
 def create_test_alert(logsink, severity="medium",
                      alert_type="info", message="Test alert", **kwargs):
     """Creates a test alert.
@@ -133,31 +111,6 @@ def create_test_alert(logsink, severity="medium",
     }
     defaults.update(kwargs)
     return Alert.objects.create(**defaults)
-
-
-def create_test_honeypot_activity(rustbucket, activity_type="scan",
-                                 source_ip="192.168.1.100",
-                                 details="Test activity", **kwargs):
-    """Creates a test honeypot activity.
-
-    Args:
-        rustbucket: The rustbucket to associate with the activity.
-        activity_type: Type of honeypot activity.
-        source_ip: Source IP address.
-        details: Activity details.
-        **kwargs: Additional fields to set on the activity.
-
-    Returns:
-        HoneypotActivity: The created test honeypot activity.
-    """
-    defaults = {
-        'rustbucket': rustbucket,
-        'type': activity_type,
-        'source_ip': source_ip,
-        'details': details
-    }
-    defaults.update(kwargs)
-    return HoneypotActivity.objects.create(**defaults)
 
 
 def create_test_api_key(rustbucket, name="Test API Key", user=None, **kwargs):
@@ -221,20 +174,6 @@ class TestDataMixin:
             log_type="Error",
             size="10MB",
             alert_level="high"
-        )
-        
-        create_test_log_entry(
-            logsink=self.logsink1,
-            level="INFO",
-            message="Test log message 1",
-            source_ip="192.168.1.1"
-        )
-
-        create_test_log_entry(
-            logsink=self.logsink2,
-            level="ERROR",
-            message="Test error message",
-            source_ip="192.168.1.2"
         )
 
         create_test_alert(

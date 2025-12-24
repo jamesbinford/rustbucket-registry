@@ -1,14 +1,14 @@
 """Tests for RustBucketRegistry API endpoints.
 
 This module contains unit tests for testing API endpoints including
-rustbucket registration, log submission, and honeypot activity reporting.
+rustbucket registration.
 """
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 import json
 
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+from rustbucketregistry.models import Rustbucket, LogSink, Alert
 from rustbucketregistry.tests.fixtures import create_test_rustbucket
 
 
@@ -127,132 +127,6 @@ class RustbucketAPITest(TestCase):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 404)
-
-
-class LogEntryAPITest(TestCase):
-    """Tests for LogEntry API endpoints."""
-    
-    def setUp(self):
-        """Set up test data and client."""
-        self.client = Client()
-        self.rustbucket = Rustbucket.objects.create(
-            name="test-rustbucket",
-            ip_address="192.168.1.1",
-            operating_system="Linux"
-        )
-    
-    def test_submit_logs(self):
-        """Test the submit_logs endpoint."""
-        url = reverse('submit_logs')
-        logs_data = [
-            {
-                'level': 'INFO',
-                'message': 'Test log message 1',
-                'source_ip': '192.168.1.1',
-                'metadata': {'service': 'web'}
-            },
-            {
-                'level': 'ERROR',
-                'message': 'Test error message',
-                'source_ip': '192.168.1.2',
-                'metadata': {'service': 'database'}
-            }
-        ]
-        
-        response = self.client.post(
-            url, 
-            data=json.dumps(logs_data),
-            content_type='application/json'
-        )
-        
-        self.assertEqual(response.status_code, 201)
-        
-        # Verify logs were created in the database
-        logs = LogEntry.objects.filter(logsink__rustbucket=self.rustbucket)
-        self.assertEqual(logs.count(), 2)
-        self.assertEqual(logs.filter(level='INFO').count(), 1)
-        self.assertEqual(logs.filter(level='ERROR').count(), 1)
-    
-    def test_submit_logs_invalid_rustbucket(self):
-        """Test the submit_logs endpoint with non-existent rustbucket ID."""
-        url = reverse('submit_logs')
-        logs_data = [
-            {
-                'level': 'INFO',
-                'message': 'Test log message',
-                'source_ip': '192.168.1.1',
-                'test_invalid_rustbucket': True  # Special flag for testing non-existent rustbucket
-            }
-        ]
-        
-        response = self.client.post(
-            url, 
-            data=json.dumps(logs_data),
-            content_type='application/json'
-        )
-        
-        self.assertEqual(response.status_code, 404)
-
-
-class HoneypotActivityAPITest(TestCase):
-    """Tests for HoneypotActivity API endpoints."""
-    
-    def setUp(self):
-        """Set up test data and client."""
-        self.client = Client()
-        self.rustbucket = Rustbucket.objects.create(
-            name="test-rustbucket",
-            ip_address="192.168.1.1",
-            operating_system="Linux"
-        )
-    
-    def test_report_honeypot_activity(self):
-        """Test the report_honeypot_activity endpoint."""
-        url = reverse('report_honeypot_activity')
-        activity_data = {
-            'activity_type': 'SSH_BRUTEFORCE',
-            'source_ip': '10.0.0.1',
-            'details': {
-                'attempts': 15,
-                'username': 'root',
-                'timestamps': ['2023-01-01T12:00:00Z']
-            }
-        }
-        
-        response = self.client.post(
-            url, 
-            data=json.dumps(activity_data),
-            content_type='application/json'
-        )
-        
-        self.assertEqual(response.status_code, 201)
-        
-        # Verify activity was created in the database
-        activity = HoneypotActivity.objects.get(rustbucket=self.rustbucket)
-        self.assertEqual(activity.type, 'SSH_BRUTEFORCE')
-        self.assertEqual(activity.source_ip, '10.0.0.1')
-        # Convert JSON string back to dict if needed
-        try:
-            details = json.loads(activity.details)
-            self.assertEqual(details.get('attempts'), 15)
-        except json.JSONDecodeError:
-            # If it's not JSON, it might be a string
-            self.assertIn('attempts', activity.details)
-    
-    def test_report_honeypot_activity_invalid_data(self):
-        """Test the report_honeypot_activity endpoint with invalid data."""
-        url = reverse('report_honeypot_activity')
-        
-        # Missing required fields
-        activity_data = {'source_ip': '10.0.0.1'}
-        
-        response = self.client.post(
-            url, 
-            data=json.dumps(activity_data),
-            content_type='application/json'
-        )
-        
-        self.assertEqual(response.status_code, 400)
 
 
 class LogSinkAPITest(TestCase):

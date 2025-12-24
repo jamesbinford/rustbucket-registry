@@ -128,10 +128,9 @@ def cleanup_old_data():
 
     This task:
     - Deletes resolved alerts older than 90 days
-    - Deletes log entries older than 30 days
     """
     try:
-        from rustbucketregistry.models import Alert, LogEntry
+        from rustbucketregistry.models import Alert
 
         logger.info("Starting data cleanup")
 
@@ -145,16 +144,8 @@ def cleanup_old_data():
         ).delete()
         cleanup_results['alerts_deleted'] = deleted_alerts[0]
 
-        # Delete old log entries (30 days)
-        log_threshold = timezone.now() - timedelta(days=30)
-        deleted_logs = LogEntry.objects.filter(
-            timestamp__lt=log_threshold
-        ).delete()
-        cleanup_results['logs_deleted'] = deleted_logs[0]
-
         logger.info(
-            f"Data cleanup completed: {cleanup_results['alerts_deleted']} alerts, "
-            f"{cleanup_results['logs_deleted']} logs deleted"
+            f"Data cleanup completed: {cleanup_results['alerts_deleted']} alerts deleted"
         )
 
         return cleanup_results
@@ -169,14 +160,10 @@ def generate_daily_summary():
 
     This creates a summary of:
     - New alerts in the last 24 hours
-    - Honeypot activities
     - Rustbucket health status
-    - Top attacking IPs
     """
     try:
-        from rustbucketregistry.models import (
-            Rustbucket, Alert, HoneypotActivity
-        )
+        from rustbucketregistry.models import Rustbucket, Alert
 
         logger.info("Generating daily summary report")
 
@@ -186,30 +173,16 @@ def generate_daily_summary():
         # Count new alerts
         new_alerts = Alert.objects.filter(created_at__gte=since).count()
 
-        # Count honeypot activities by type
-        activities = HoneypotActivity.objects.filter(timestamp__gte=since)
-        activity_counts = activities.values('type').annotate(count=Count('type'))
-
         # Count active rustbuckets
         active_rustbuckets = Rustbucket.objects.filter(status='Active').count()
-
-        # Get top attacking IPs
-        top_ips = (
-            activities.values('source_ip')
-            .annotate(count=Count('source_ip'))
-            .order_by('-count')[:10]
-        )
 
         summary = {
             'date': timezone.now().date().isoformat(),
             'new_alerts': new_alerts,
-            'activity_counts': list(activity_counts),
             'active_rustbuckets': active_rustbuckets,
-            'top_attacking_ips': list(top_ips),
-            'total_activities': activities.count()
         }
 
-        logger.info(f"Daily summary: {new_alerts} new alerts, {activities.count()} activities")
+        logger.info(f"Daily summary: {new_alerts} new alerts")
 
         return summary
 

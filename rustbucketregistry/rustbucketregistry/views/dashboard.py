@@ -4,18 +4,15 @@ This module contains view functions for the analytics dashboard,
 including chart data APIs and summary statistics.
 """
 from datetime import datetime, timedelta
-from collections import defaultdict
 
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.utils import timezone
-from django.db.models import Count, F
-from django.db.models.functions import TruncDate
+from django.db.models import Count
 from django.core.cache import cache
-from django.conf import settings
 from django.contrib.auth.decorators import login_required
 
-from rustbucketregistry.models import Rustbucket, Alert, HoneypotActivity
+from rustbucketregistry.models import Rustbucket, Alert
 from rustbucketregistry.permissions import (
     filter_rustbuckets_for_user,
     rustbucket_access_required,
@@ -82,32 +79,6 @@ def parse_percentage(value):
         return 0.0
 
 
-def get_country_from_ip(ip_address):
-    """Gets country information from an IP address using GeoIP2.
-
-    Args:
-        ip_address: The IP address to look up.
-
-    Returns:
-        dict: Country code and name, or defaults if lookup fails.
-    """
-    try:
-        import geoip2.database
-        geoip_path = getattr(settings, 'GEOIP_PATH', None)
-        if geoip_path:
-            db_path = geoip_path / 'GeoLite2-Country.mmdb'
-            if db_path.exists():
-                reader = geoip2.database.Reader(str(db_path))
-                response = reader.country(ip_address)
-                return {
-                    'country_code': response.country.iso_code or 'XX',
-                    'country_name': response.country.name or 'Unknown'
-                }
-    except Exception:
-        pass
-    return {'country_code': 'XX', 'country_name': 'Unknown'}
-
-
 @login_required
 def dashboard_view(request):
     """Main dashboard page view.
@@ -162,12 +133,8 @@ def dashboard_overview_api(request):
     total_rustbuckets = accessible_rustbuckets.count()
     active_rustbuckets = accessible_rustbuckets.filter(status='Active').count()
 
-    # Get attack statistics for the time range (filtered by access)
-    total_attacks = HoneypotActivity.objects.filter(
-        rustbucket__in=accessible_rustbuckets,
-        timestamp__gte=start,
-        timestamp__lte=end
-    ).count()
+    # Attack statistics now come from log file analysis (not tracked separately)
+    total_attacks = 0
 
     # Get unresolved alerts (filtered by access)
     unresolved_alerts = Alert.objects.filter(
@@ -214,54 +181,27 @@ def dashboard_attacks_api(request):
 
     start, end = get_time_range(request)
 
-    # Get accessible rustbuckets for the user
-    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
+    # Attack data is now in log files, not tracked separately
+    # Generate empty date range for chart structure
+    sorted_dates = []
+    current = start.date()
+    while current <= end.date():
+        sorted_dates.append(current.strftime('%Y-%m-%d'))
+        current += timedelta(days=1)
 
-    # Get attacks grouped by date and type (filtered by access)
-    attacks = HoneypotActivity.objects.filter(
-        rustbucket__in=accessible_rustbuckets,
-        timestamp__gte=start,
-        timestamp__lte=end
-    ).annotate(
-        date=TruncDate('timestamp')
-    ).values('date', 'type').annotate(
-        count=Count('id')
-    ).order_by('date')
-
-    # Build date range for labels
-    date_set = set()
+    # Build empty datasets
     attack_types = ['scan', 'exploit', 'bruteforce', 'malware']
-    data_by_type = {t: defaultdict(int) for t in attack_types}
-
-    for attack in attacks:
-        date_str = attack['date'].strftime('%Y-%m-%d')
-        date_set.add(date_str)
-        attack_type = attack['type']
-        if attack_type in data_by_type:
-            data_by_type[attack_type][date_str] = attack['count']
-
-    # Sort dates
-    sorted_dates = sorted(date_set)
-
-    # If no data, generate empty date range
-    if not sorted_dates:
-        current = start.date()
-        while current <= end.date():
-            sorted_dates.append(current.strftime('%Y-%m-%d'))
-            current += timedelta(days=1)
-
-    # Build datasets
-    datasets = []
     colors = {
         'scan': '#2196F3',
         'exploit': '#c62828',
         'bruteforce': '#ef6c00',
         'malware': '#9c27b0'
     }
+    datasets = []
     for attack_type in attack_types:
         datasets.append({
             'label': attack_type,
-            'data': [data_by_type[attack_type][d] for d in sorted_dates],
+            'data': [0] * len(sorted_dates),
             'borderColor': colors.get(attack_type, '#333'),
             'fill': False
         })
@@ -297,26 +237,10 @@ def dashboard_top_ips_api(request):
     if cached_data:
         return JsonResponse(cached_data)
 
-    start, end = get_time_range(request)
-
-    # Get accessible rustbuckets for the user
-    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
-
-    # Get top attacking IPs (filtered by access)
-    top_ips = HoneypotActivity.objects.filter(
-        rustbucket__in=accessible_rustbuckets,
-        timestamp__gte=start,
-        timestamp__lte=end
-    ).values('source_ip').annotate(
-        count=Count('id')
-    ).order_by('-count')[:10]
-
-    labels = [ip['source_ip'] for ip in top_ips]
-    counts = [ip['count'] for ip in top_ips]
-
+    # Attack IP data is now in log files, not tracked separately
     data = {
-        'labels': labels,
-        'data': counts,
+        'labels': [],
+        'data': [],
         'limit': 10
     }
 
@@ -347,43 +271,11 @@ def dashboard_countries_api(request):
     if cached_data:
         return JsonResponse(cached_data)
 
-    start, end = get_time_range(request)
-
-    # Get accessible rustbuckets for the user
-    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
-
-    # Get all activities in the time range (filtered by access)
-    activities = HoneypotActivity.objects.filter(
-        rustbucket__in=accessible_rustbuckets,
-        timestamp__gte=start,
-        timestamp__lte=end
-    ).values_list('source_ip', flat=True)
-
-    # Count attacks by country
-    country_counts = defaultdict(int)
-    country_names = {}
-
-    for ip in activities:
-        geo_info = get_country_from_ip(ip)
-        country_code = geo_info['country_code']
-        country_counts[country_code] += 1
-        country_names[country_code] = geo_info['country_name']
-
-    # Sort by count and take top 10
-    sorted_countries = sorted(
-        country_counts.items(),
-        key=lambda x: x[1],
-        reverse=True
-    )[:10]
-
-    codes = [c[0] for c in sorted_countries]
-    labels = [country_names.get(c, 'Unknown') for c in codes]
-    counts = [c[1] for c in sorted_countries]
-
+    # Attack country data is now in log files, not tracked separately
     data = {
-        'labels': labels,
-        'codes': codes,
-        'data': counts,
+        'labels': [],
+        'codes': [],
+        'data': [],
         'limit': 10
     }
 
@@ -537,31 +429,11 @@ def dashboard_targets_api(request):
     if cached_data:
         return JsonResponse(cached_data)
 
-    start, end = get_time_range(request)
-
-    # Get accessible rustbuckets for the user
-    accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
-
-    # Get most targeted rustbuckets (filtered by access)
-    targets = HoneypotActivity.objects.filter(
-        rustbucket__in=accessible_rustbuckets,
-        timestamp__gte=start,
-        timestamp__lte=end
-    ).values(
-        'rustbucket__id',
-        'rustbucket__name'
-    ).annotate(
-        count=Count('id')
-    ).order_by('-count')[:10]
-
-    labels = [t['rustbucket__name'] for t in targets]
-    bucket_ids = [t['rustbucket__id'] for t in targets]
-    counts = [t['count'] for t in targets]
-
+    # Attack target data is now in log files, not tracked separately
     data = {
-        'labels': labels,
-        'bucket_ids': bucket_ids,
-        'data': counts
+        'labels': [],
+        'bucket_ids': [],
+        'data': []
     }
 
     cache.set(cache_key, data, timeout=CACHE_TIMEOUT)

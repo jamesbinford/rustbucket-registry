@@ -10,7 +10,7 @@ from django.utils import timezone
 from io import StringIO
 import datetime
 
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert, HoneypotActivity
+from rustbucketregistry.models import Rustbucket, LogSink, Alert
 from rustbucketregistry.scheduled_tasks import (
     pull_rustbucket_updates,
     extract_logs_from_rustbuckets,
@@ -305,32 +305,6 @@ class CleanupOldDataTaskTest(TestCase):
         # Unresolved alert should still exist
         self.assertTrue(Alert.objects.filter(id=unresolved.id).exists())
 
-    def test_cleanup_deletes_old_log_entries(self):
-        """Test that old log entries are deleted."""
-        # Create old log entry (31 days ago - threshold is 30 days)
-        old_log = LogEntry.objects.create(
-            logsink=self.logsink,
-            level='INFO',
-            message='Old log entry',
-            timestamp=timezone.now() - datetime.timedelta(days=31)
-        )
-
-        # Create recent log entry
-        recent_log = LogEntry.objects.create(
-            logsink=self.logsink,
-            level='INFO',
-            message='Recent log entry',
-            timestamp=timezone.now()
-        )
-
-        cleanup_old_data()
-
-        # Old log should be deleted
-        self.assertFalse(LogEntry.objects.filter(id=old_log.id).exists())
-
-        # Recent log should still exist
-        self.assertTrue(LogEntry.objects.filter(id=recent_log.id).exists())
-
     def test_cleanup_logs_deletion_counts(self):
         """Test that cleanup logs the number of deleted items."""
         # Create multiple old items
@@ -400,16 +374,6 @@ class GenerateDailySummaryTaskTest(TestCase):
                 created_at=today - datetime.timedelta(hours=i)
             )
 
-        # Create honeypot activities
-        for i in range(2):
-            HoneypotActivity.objects.create(
-                rustbucket=self.rustbucket1,
-                type='scan',
-                source_ip=f'10.0.0.{i}',
-                details=f'Scan attempt {i}',
-                timestamp=today - datetime.timedelta(hours=i)
-            )
-
     def test_generate_daily_summary_counts_data(self):
         """Test that daily summary counts are calculated correctly."""
         # Should complete without errors and generate summary
@@ -422,7 +386,6 @@ class GenerateDailySummaryTaskTest(TestCase):
         """Test daily summary with no data for the day."""
         # Delete all data
         Alert.objects.all().delete()
-        HoneypotActivity.objects.all().delete()
 
         # Should still complete
         try:

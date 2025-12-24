@@ -7,7 +7,7 @@ from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry, Alert
+from rustbucketregistry.models import Rustbucket, LogSink, Alert
 from rustbucketregistry.tests.fixtures import TestDataMixin
 
 

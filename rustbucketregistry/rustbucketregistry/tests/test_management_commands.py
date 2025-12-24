@@ -11,7 +11,7 @@ from django.utils import timezone
 import json
 import boto3
 
-from rustbucketregistry.models import Rustbucket, LogSink, LogEntry
+from rustbucketregistry.models import Rustbucket, LogSink
 from rustbucketregistry.management.commands.parse_logs import Command as ParseLogsCommand
 
 
@@ -73,51 +73,27 @@ class ParseLogsCommandTest(TestCase):
         # Mock the S3 client
         mock_s3_client = MagicMock()
         mock_boto3_client.return_value = mock_s3_client
-        
+
         # Mock the list_objects_v2 response
         mock_s3_client.list_objects_v2.return_value = {
             'Contents': [
-                {'Key': 'BKT123456_20220101120000_logs.txt'},
-                {'Key': 'processed_BKT654321_20220101120000_logs.txt'}  # Already processed
+                {'Key': 'BKT123456_20220101120000_logs.txt', 'Size': 1024},
+                {'Key': 'processed_BKT654321_20220101120000_logs.txt', 'Size': 512}  # Already processed
             ]
         }
-        
-        # Mock the get_object response
-        mock_body = MagicMock()
-        mock_body.read.return_value = json.dumps({
-            'level': 'ERROR',
-            'message': 'Test error message',
-            'source_ip': '192.168.1.2'
-        }).encode('utf-8')
-        
-        mock_s3_client.get_object.return_value = {
-            'Body': mock_body
-        }
-        
+
         # Capture command output
         out = StringIO()
-        
+
         # Call the command
         with patch('django.conf.settings.AWS_ACCESS_KEY_ID', 'test-access-key'):
             with patch('django.conf.settings.AWS_SECRET_ACCESS_KEY', 'test-secret-key'):
                 call_command('parse_logs', stdout=out)
-        
-        # Verify the S3 client was called with the correct parameters
-        mock_s3_client.get_object.assert_called_once()
-        args, kwargs = mock_s3_client.get_object.call_args
-        self.assertEqual(kwargs['Key'], 'BKT123456_20220101120000_logs.txt')
-        
-        # Verify the file was marked as processed
+
+        # Verify the file was marked as processed (copy + delete)
         mock_s3_client.copy_object.assert_called_once()
         mock_s3_client.delete_object.assert_called_once()
-        
-        # Verify a log entry was created
-        log_entry = LogEntry.objects.first()
-        self.assertIsNotNone(log_entry)
-        self.assertEqual(log_entry.level, 'ERROR')
-        self.assertEqual(log_entry.message, 'Test error message')
-        self.assertEqual(log_entry.source_ip, '192.168.1.2')
-        
+
         # Verify the output contains the success message
         self.assertIn('Log parsing completed', out.getvalue())
     

@@ -269,50 +269,6 @@ class LogSink(models.Model):
         return f"{self.rustbucket.name} - {self.log_type}"
 
 
-class LogEntry(models.Model):
-    """
-    Represents a log entry for a logsink.
-    """
-    logsink = models.ForeignKey(
-        LogSink,
-        on_delete=models.CASCADE,
-        related_name='entries',
-        help_text="The logsink this entry belongs to"
-    )
-
-    # For test compatibility - log level field
-    level = models.CharField(
-        max_length=20,
-        null=True,
-        blank=True,
-        help_text="Log level (for backward compatibility)"
-    )
-
-    # For backward compatibility with tests
-    source_ip = models.GenericIPAddressField(
-        null=True,
-        blank=True,
-        help_text="Source IP (for backward compatibility)"
-    )
-
-    timestamp = models.DateTimeField(
-        default=timezone.now,
-        help_text="When the log entry was created"
-    )
-
-    message = models.TextField(
-        help_text="The log message"
-    )
-
-    class Meta:
-        ordering = ['-timestamp']
-        verbose_name = 'Log Entry'
-        verbose_name_plural = 'Log Entries'
-
-    def __str__(self):
-        return f"Log: {self.level} - {self.message[:50]}"
-
-
 class Alert(models.Model):
     """
     Represents an alert for a logsink.
@@ -377,52 +333,6 @@ class Alert(models.Model):
 
     def __str__(self):
         return f"Alert: {self.severity} - {self.message[:50]}"
-
-
-class HoneypotActivity(models.Model):
-    """
-    Represents honeypot activity detected from a rustbucket.
-    """
-    rustbucket = models.ForeignKey(
-        Rustbucket,
-        on_delete=models.CASCADE,
-        related_name='honeypot_activities',
-        help_text="The rustbucket this activity was detected from"
-    )
-    
-    ACTIVITY_TYPE_CHOICES = [
-        ('scan', 'Scan'),
-        ('exploit', 'Exploit'),
-        ('bruteforce', 'Brute Force'),
-        ('malware', 'Malware'),
-        ('SSH_BRUTEFORCE', 'SSH Brute Force'),
-    ]
-    type = models.CharField(
-        max_length=20,
-        choices=ACTIVITY_TYPE_CHOICES,
-        help_text="Type of activity"
-    )
-
-    source_ip = models.GenericIPAddressField(
-        help_text="Source IP of the activity"
-    )
-    
-    timestamp = models.DateTimeField(
-        default=timezone.now,
-        help_text="When the activity was detected"
-    )
-    
-    details = models.TextField(
-        help_text="Details of the activity (string or JSON string)"
-    )
-
-    class Meta:
-        ordering = ['-timestamp']
-        verbose_name = 'Honeypot Activity'
-        verbose_name_plural = 'Honeypot Activities'
-
-    def __str__(self):
-        return f"{self.type} from {self.source_ip}"
 
 
 class NotificationChannel(models.Model):

@@ -60,9 +60,6 @@
         .status-inactive {
             color: red;
         }
-        .status-maintenance {
-            color: orange;
-        }
         .alert-high {
             background-color: #ffebee;
         }
@@ -112,10 +109,6 @@
             background-color: #e3f2fd;
             color: #1565c0;
         }
-        .badge-attack {
-            background-color: #311b92;
-            color: white;
-        }
         a {
             color: #2196F3;
             text-decoration: none;
@@ -125,88 +118,6 @@
         }
         .nav-links {
             margin-bottom: 20px;
-        }
-        .honeypot-activity {
-            margin-top: 30px;
-            background-color: #f8f8f8;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-            padding: 15px;
-        }
-        .activity-entry {
-            margin-bottom: 10px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #eee;
-        }
-        .activity-timestamp {
-            font-size: 0.8em;
-            color: #666;
-        }
-        .activity-source {
-            font-weight: bold;
-            margin-right: 10px;
-        }
-        .activity-type {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 0.8em;
-            margin-right: 10px;
-        }
-        .activity-type-scan {
-            background-color: #e3f2fd;
-            color: #1565c0;
-        }
-        .activity-type-exploit {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        .activity-type-bruteforce {
-            background-color: #311b92;
-            color: white;
-        }
-        .activity-type-malware {
-            background-color: #4a148c;
-            color: white;
-        }
-        .activity-details {
-            margin-top: 5px;
-            font-family: monospace;
-            font-size: 0.9em;
-            padding: 5px;
-            background-color: #f5f5f5;
-            border: 1px solid #eee;
-            border-radius: 3px;
-            overflow-x: auto;
-        }
-        .filter-controls {
-            margin-bottom: 20px;
-            padding: 10px;
-            background-color: #f9f9f9;
-            border-radius: 5px;
-        }
-        .tab-controls {
-            display: flex;
-            margin-bottom: 20px;
-        }
-        .tab {
-            padding: 10px 20px;
-            background-color: #f1f1f1;
-            cursor: pointer;
-            border: 1px solid #ddd;
-            border-bottom: none;
-            border-radius: 5px 5px 0 0;
-            margin-right: 5px;
-        }
-        .tab.active {
-            background-color: white;
-            font-weight: bold;
-        }
-        .tab-content {
-            display: none;
-        }
-        .tab-content.active {
-            display: block;
         }
     </style>
 </head>
@@ -219,137 +130,62 @@
             <a href="{% url 'dashboard' %}">Dashboard</a>
         </div>
 
-        <div class="tab-controls">
-            <div class="tab active" data-tab="logsinks">System Logs</div>
-            <div class="tab" data-tab="honeypots">Honeypot Activity</div>
-        </div>
-
-        <div id="logsinks-tab" class="tab-content active">
-            <div class="page-layout">
-                <div class="logsinks-table">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Bucket ID</th>
-                                <th>Name</th>
-                                <th>Log Type</th>
-                                <th>Size</th>
-                                <th>Last Update</th>
-                                <th>Status</th>
-                                <th>Alerts</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for logsink in logsinks %}
-                            <tr {% if logsink.alert_level == 'high' %}class="alert-high"{% elif logsink.alert_level == 'medium' %}class="alert-medium"{% elif logsink.alert_level == 'low' %}class="alert-low"{% endif %}>
-                                <td>{{ logsink.bucket_id }}</td>
-                                <td><a href="{% url 'bucket_detail' bucket_id=logsink.bucket_id %}">{{ logsink.bucket_name }}</a></td>
-                                <td>{{ logsink.log_type }}</td>
-                                <td>{{ logsink.size }}</td>
-                                <td>{{ logsink.last_update }}</td>
-                                <td class="status-{{ logsink.status|lower }}">{{ logsink.status }}</td>
-                                <td>
-                                    {% for alert in logsink.alerts %}
-                                    <span class="badge badge-{{ alert.type }}">{{ alert.message }}</span>
-                                    {% if not forloop.last %}<br>{% endif %}
-                                    {% endfor %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-
-                <div class="log-analysis">
-                    <h2 class="summary-heading">Log Analysis by Claude</h2>
-
-                    {% if summary %}
-                        {% for item in summary %}
-                        <div class="summary-item">
-                            <div class="summary-title">{{ item.title }}</div>
-                            <div class="summary-text">{{ item.text }}</div>
-                        </div>
+        <div class="page-layout">
+            <div class="logsinks-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Bucket ID</th>
+                            <th>Name</th>
+                            <th>Log Type</th>
+                            <th>Size</th>
+                            <th>Last Update</th>
+                            <th>Status</th>
+                            <th>Alerts</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for logsink in logsinks %}
+                        <tr {% if logsink.alert_level == 'high' %}class="alert-high"{% elif logsink.alert_level == 'medium' %}class="alert-medium"{% elif logsink.alert_level == 'low' %}class="alert-low"{% endif %}>
+                            <td>{{ logsink.bucket_id }}</td>
+                            <td><a href="{% url 'bucket_detail' bucket_id=logsink.bucket_id %}">{{ logsink.bucket_name }}</a></td>
+                            <td>{{ logsink.log_type }}</td>
+                            <td>{{ logsink.size }}</td>
+                            <td>{{ logsink.last_update }}</td>
+                            <td class="status-{{ logsink.status|lower }}">{{ logsink.status }}</td>
+                            <td>
+                                {% for alert in logsink.alerts %}
+                                <span class="badge badge-{{ alert.type }}">{{ alert.message }}</span>
+                                {% if not forloop.last %}<br>{% endif %}
+                                {% endfor %}
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="7" style="text-align: center; padding: 40px; color: #666;">
+                                No log files have been extracted yet. Log files are pulled from rustbuckets via the scheduled extraction task.
+                            </td>
+                        </tr>
                         {% endfor %}
-                    {% else %}
-                        <p>No log analysis available at this time.</p>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-
-        <div id="honeypots-tab" class="tab-content">
-            <div class="filter-controls">
-                <h3>Attack Activity Filters</h3>
-                <label><input type="checkbox" class="activity-filter" data-type="scan" checked> Port Scans</label>
-                <label><input type="checkbox" class="activity-filter" data-type="exploit" checked> Exploit Attempts</label>
-                <label><input type="checkbox" class="activity-filter" data-type="bruteforce" checked> Brute Force Attacks</label>
-                <label><input type="checkbox" class="activity-filter" data-type="malware" checked> Malware Uploads</label>
-            </div>
-
-            <div class="honeypot-activity">
-                <h2>Aggregated Honeypot Activity</h2>
-
-                {% if honeypot_activities %}
-                    {% for activity in honeypot_activities %}
-                    <div class="activity-entry activity-type-{{ activity.type }}">
-                        <div>
-                            <span class="activity-timestamp">{{ activity.timestamp }}</span>
-                            <span class="activity-source">{{ activity.source_ip }}</span>
-                            <span class="activity-type activity-type-{{ activity.type }}">{{ activity.type|title }}</span>
-                            <span>Target: {{ activity.bucket_name }} ({{ activity.bucket_id }})</span>
-                        </div>
-                        <div class="activity-details">{{ activity.details }}</div>
-                    </div>
-                    {% endfor %}
-                {% else %}
-                    <p>No honeypot activity detected at this time.</p>
-                {% endif %}
+                    </tbody>
+                </table>
             </div>
 
             <div class="log-analysis">
-                <h2 class="summary-heading">Threat Intelligence</h2>
+                <h2 class="summary-heading">Log Analysis</h2>
 
-                {% if threat_summary %}
-                    {% for item in threat_summary %}
+                {% if summary %}
+                    {% for item in summary %}
                     <div class="summary-item">
                         <div class="summary-title">{{ item.title }}</div>
                         <div class="summary-text">{{ item.text }}</div>
                     </div>
                     {% endfor %}
                 {% else %}
-                    <p>No threat intelligence available at this time.</p>
+                    <p>No log analysis available at this time.</p>
                 {% endif %}
             </div>
         </div>
     </div>
-
-    <script>
-        // Simple tab switching functionality
-        document.querySelectorAll('.tab').forEach(tab => {
-            tab.addEventListener('click', function() {
-                // Remove active class from all tabs
-                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-                // Add active class to clicked tab
-                this.classList.add('active');
-
-                // Hide all tab content
-                document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
-                // Show the corresponding tab content
-                document.getElementById(this.dataset.tab + '-tab').classList.add('active');
-            });
-        });
-
-        // Activity filtering
-        document.querySelectorAll('.activity-filter').forEach(filter => {
-            filter.addEventListener('change', function() {
-                const type = this.dataset.type;
-                const show = this.checked;
-
-                document.querySelectorAll(`.activity-entry.activity-type-${type}`).forEach(entry => {
-                    entry.style.display = show ? 'block' : 'none';
-                });
-            });
-        });
-    </script>
 </body>
 </html>

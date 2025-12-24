@@ -20,12 +20,10 @@ from django.contrib.auth import views as auth_views
 
 # Import views
 from rustbucketregistry.views.home import index, about, detail
-from rustbucketregistry.views.logsinks import logsinks_view, logsink_api, honeypot_api
+from rustbucketregistry.views.logsinks import logsinks_view, logsink_api
 from rustbucketregistry.views.register import (
     register_rustbucket,
     get_rustbucket,
-    submit_logs,
-    report_honeypot_activity,
     extract_logs,
     update_buckets,
 )
@@ -62,16 +60,12 @@ urlpatterns = [
     # Public API endpoints (for rustbucket clients - token auth)
     path('api/register/', register_rustbucket, name='register_rustbucket'),
     path('api/rustbucket/<str:rustbucket_id>/', get_rustbucket, name='get_rustbucket'),
-    path('api/logs/submit/', submit_logs, name='submit_logs'),
-    path('api/honeypot/report/', report_honeypot_activity, name='report_honeypot_activity'),
     path('api/logs/extract/', extract_logs, name='extract_logs'),
     path('api/buckets/update/', update_buckets, name='update_buckets'),
 
     # Internal API endpoints (for UI - RBAC applied in views)
     path('api/logsinks/', logsink_api, name='logsinks_api'),
     path('api/logsinks/<str:bucket_id>/', logsink_api, name='logsinks_api_detail'),
-    path('api/honeypot/', honeypot_api, name='honeypot_api'),
-    path('api/honeypot/<str:bucket_id>/', honeypot_api, name='honeypot_api_detail'),
 
     # Dashboard (RBAC applied in views)
     path('dashboard/', dashboard_view, name='dashboard'),
