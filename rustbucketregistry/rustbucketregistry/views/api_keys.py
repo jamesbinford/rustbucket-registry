@@ -7,14 +7,13 @@ import json
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
-from django.contrib.auth.decorators import login_required
 from django.utils import timezone
 
 from rustbucketregistry.models import Rustbucket, APIKey, AuditLog
 from rustbucketregistry.permissions import analyst_required
 
 
-@login_required
+@analyst_required
 @require_GET
 def list_api_keys(request, rustbucket_id=None):
     """List API keys, optionally filtered by rustbucket.
@@ -51,7 +50,7 @@ def list_api_keys(request, rustbucket_id=None):
 
 
 @csrf_exempt
-@login_required
+@analyst_required
 @require_POST
 def create_api_key(request, rustbucket_id):
     """Create a new API key for a rustbucket.
@@ -65,15 +64,6 @@ def create_api_key(request, rustbucket_id):
     Returns:
         JsonResponse with the new API key (full key shown only once!)
     """
-    # Check if user has analyst or higher role
-    from rustbucketregistry.permissions import get_user_profile
-    profile = get_user_profile(request.user)
-    if not profile or not profile.is_analyst():
-        return JsonResponse({
-            'success': False,
-            'message': 'Analyst access required'
-        }, status=403)
-
     try:
         data = json.loads(request.body)
 
@@ -144,7 +134,7 @@ def create_api_key(request, rustbucket_id):
 
 
 @csrf_exempt
-@login_required
+@analyst_required
 @require_POST
 def revoke_api_key(request, api_key_id):
     """Revoke an API key.
@@ -152,15 +142,6 @@ def revoke_api_key(request, api_key_id):
     Returns:
         JsonResponse with success status
     """
-    # Check if user has analyst or higher role
-    from rustbucketregistry.permissions import get_user_profile
-    profile = get_user_profile(request.user)
-    if not profile or not profile.is_analyst():
-        return JsonResponse({
-            'success': False,
-            'message': 'Analyst access required'
-        }, status=403)
-
     try:
         api_key = APIKey.objects.get(id=api_key_id)
     except APIKey.DoesNotExist:
@@ -188,7 +169,7 @@ def revoke_api_key(request, api_key_id):
 
 
 @csrf_exempt
-@login_required
+@analyst_required
 @require_POST
 def rotate_api_key(request, api_key_id):
     """Rotate (regenerate) an API key.
@@ -196,15 +177,6 @@ def rotate_api_key(request, api_key_id):
     Returns:
         JsonResponse with the new key value
     """
-    # Check if user has analyst or higher role
-    from rustbucketregistry.permissions import get_user_profile
-    profile = get_user_profile(request.user)
-    if not profile or not profile.is_analyst():
-        return JsonResponse({
-            'success': False,
-            'message': 'Analyst access required'
-        }, status=403)
-
     try:
         api_key = APIKey.objects.get(id=api_key_id)
     except APIKey.DoesNotExist:

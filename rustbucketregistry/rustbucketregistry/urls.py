@@ -19,7 +19,7 @@ from django.urls import path, include
 from django.contrib.auth import views as auth_views
 
 # Import views
-from rustbucketregistry.views.home import index, about, detail
+from rustbucketregistry.views.home import index, detail
 from rustbucketregistry.views.logsinks import logsinks_view, logsink_api
 from rustbucketregistry.views.register import (
     register_rustbucket,

@@ -61,11 +61,6 @@ class HomeViewsTest(TestCase, TestDataMixin):
         response = self.client.get(url)
         
         self.assertEqual(response.status_code, 404)
-    
-    def test_about_view(self):
-        """Test the about view."""
-        # The about view doesn't have a URL configured, so we skip this test
-        self.assertTrue(True)
 
 
 class LogSinksViewTest(TestCase):

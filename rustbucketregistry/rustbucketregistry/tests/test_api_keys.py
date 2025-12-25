@@ -264,7 +264,8 @@ class APIKeyRBACTest(TestCase):
         self.client.login(username='viewer', password='viewerpass')
 
         response = self.client.post(
-            reverse('revoke_api_key', args=[api_key.id])
+            reverse('revoke_api_key', args=[api_key.id]),
+            content_type='application/json'
         )
 
         self.assertEqual(response.status_code, 403)

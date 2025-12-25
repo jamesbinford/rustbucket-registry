@@ -6,7 +6,6 @@ registration keys that rustbuckets use to register with the registry.
 import json
 from datetime import timedelta
 
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
@@ -14,35 +13,12 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
 
 from rustbucketregistry.models import RegistrationKey, AuditLog
-
-
-def require_admin(view_func):
-    """Decorator to require admin role for a view."""
-    def wrapper(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Authentication required'
-            }, status=401)
-
-        # Check if user is admin (superuser or has admin profile)
-        is_admin = request.user.is_superuser
-        if hasattr(request.user, 'profile'):
-            is_admin = is_admin or request.user.profile.is_admin()
-
-        if not is_admin:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Admin access required'
-            }, status=403)
-
-        return view_func(request, *args, **kwargs)
-    return wrapper
+from rustbucketregistry.permissions import admin_required
 
 
 @csrf_exempt
 @require_POST
-@require_admin
+@admin_required
 def create_registration_key(request):
     """Create a new registration key.
 
@@ -111,7 +87,7 @@ def create_registration_key(request):
 
 
 @require_GET
-@require_admin
+@admin_required
 def list_registration_keys(request):
     """List all registration keys with their status.
 
@@ -152,7 +128,7 @@ def list_registration_keys(request):
 
 @csrf_exempt
 @require_POST
-@require_admin
+@admin_required
 def revoke_registration_key(request, key_id):
     """Revoke an unused registration key.
 
@@ -203,7 +179,7 @@ def revoke_registration_key(request, key_id):
     })
 
 
-@login_required
+@admin_required
 def registration_keys_view(request):
     """Render the registration keys management page.
 
@@ -216,15 +192,6 @@ def registration_keys_view(request):
     Returns:
         Rendered registration_keys.html template
     """
-    # Check if user is admin
-    is_admin = request.user.is_superuser
-    if hasattr(request.user, 'profile'):
-        is_admin = is_admin or request.user.profile.is_admin()
-
-    if not is_admin:
-        from django.shortcuts import redirect
-        return redirect('home')
-
     keys = RegistrationKey.objects.all().select_related(
         'created_by', 'used_by_rustbucket'
     ).order_by('-created_at')

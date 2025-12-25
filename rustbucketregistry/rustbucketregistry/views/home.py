@@ -1,8 +1,7 @@
 """Home views for the RustBucket Registry application.
 
 This module contains view functions for handling the main pages of the
-RustBucket Registry application, including the home page, detail pages,
-and about page.
+RustBucket Registry application, including the home page and detail pages.
 """
 from django.http import HttpResponse, Http404
 from django.shortcuts import render, get_object_or_404
@@ -123,20 +122,3 @@ def detail(request, bucket_id):
     }
 
     return render(request, 'detail.html', context)
-
-
-def about(request):
-    """Renders the about page view.
-    
-    Args:
-        request: The HTTP request object.
-        
-    Returns:
-        HttpResponse: The rendered about page.
-    """
-    registry_name = format_registry_name("Rust Bucket Registry")
-    context = {
-        'registry_name': registry_name,
-        'description': 'A registry for Rust packages and components.'
-    }
-    return render(request, 'about.html', context)

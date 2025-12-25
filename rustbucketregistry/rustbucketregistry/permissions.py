@@ -46,10 +46,9 @@ Helper Functions:
 """
 import functools
 import logging
-from django.http import JsonResponse, HttpResponseForbidden
+from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
 
 from rustbucketregistry.models import UserProfile, RustbucketAccess, AuditLog
 
@@ -95,14 +94,16 @@ def _check_permission(request, check_func, error_message, redirect_url='home'):
     Returns:
         tuple: (allowed: bool, response: HttpResponse or None)
     """
+    is_json_request = request.content_type == 'application/json'
+
     if not request.user.is_authenticated:
-        if request.headers.get('Content-Type') == 'application/json':
+        if is_json_request:
             return False, JsonResponse({'error': 'Authentication required'}, status=401)
         return False, redirect('login')
 
     profile = get_user_profile(request.user)
     if not profile:
-        if request.headers.get('Content-Type') == 'application/json':
+        if is_json_request:
             return False, JsonResponse({'error': 'User profile not found'}, status=403)
         return False, redirect('login')
 
@@ -116,7 +117,7 @@ def _check_permission(request, check_func, error_message, redirect_url='home'):
             success=False
         )
 
-        if request.headers.get('Content-Type') == 'application/json':
+        if is_json_request:
             return False, JsonResponse({'error': error_message}, status=403)
 
         messages.error(request, error_message)
@@ -140,7 +141,6 @@ def role_required(*roles):
     """
     def decorator(view_func):
         @functools.wraps(view_func)
-        @login_required
         def wrapper(request, *args, **kwargs):
             def check_role(profile):
                 if 'admin' in roles and profile.is_admin():
@@ -175,7 +175,6 @@ def admin_required(view_func):
             ...
     """
     @functools.wraps(view_func)
-    @login_required
     def wrapper(request, *args, **kwargs):
         allowed, response = _check_permission(
             request,
@@ -200,7 +199,6 @@ def analyst_required(view_func):
             ...
     """
     @functools.wraps(view_func)
-    @login_required
     def wrapper(request, *args, **kwargs):
         allowed, response = _check_permission(
             request,
@@ -235,8 +233,13 @@ def rustbucket_access_required(access_level='view'):
     """
     def decorator(view_func):
         @functools.wraps(view_func)
-        @login_required
         def wrapper(request, *args, **kwargs):
+            # Check authentication first
+            if not request.user.is_authenticated:
+                if request.content_type == 'application/json':
+                    return JsonResponse({'error': 'Authentication required'}, status=401)
+                return redirect('login')
+
             # Get rustbucket ID from kwargs
             bucket_id = kwargs.get('bucket_id') or kwargs.get('rustbucket_id')
 
@@ -246,7 +249,7 @@ def rustbucket_access_required(access_level='view'):
 
             profile = get_user_profile(request.user)
             if not profile:
-                if request.headers.get('Content-Type') == 'application/json':
+                if request.content_type == 'application/json':
                     return JsonResponse({'error': 'User profile not found'}, status=403)
                 return redirect('login')
 
@@ -291,7 +294,7 @@ def rustbucket_access_required(access_level='view'):
             )
 
             error_message = f"You don't have {access_level} access to this rustbucket"
-            if request.headers.get('Content-Type') == 'application/json':
+            if request.content_type == 'application/json':
                 return JsonResponse({'error': error_message}, status=403)
 
             messages.error(request, error_message)
@@ -311,7 +314,6 @@ def can_manage_alerts(view_func):
             ...
     """
     @functools.wraps(view_func)
-    @login_required
     def wrapper(request, *args, **kwargs):
         allowed, response = _check_permission(
             request,
