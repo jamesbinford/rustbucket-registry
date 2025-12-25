@@ -47,6 +47,7 @@ from rustbucketregistry.views.registration_keys import (
     create_registration_key,
     list_registration_keys,
     revoke_registration_key,
+    registration_keys_view,
 )
 
 # Main URL patterns
@@ -57,6 +58,7 @@ urlpatterns = [
     path('bucket/<str:bucket_id>/', detail, name='bucket_detail'),
     path('logsinks/', logsinks_view, name='logsinks'),
     path('logsinks/<str:bucket_id>/', logsinks_view, name='logsinks_detail'),
+    path('registration-keys/', registration_keys_view, name='registration_keys'),
 
     # Authentication views
     path('login/', auth_views.LoginView.as_view(), name='login'),

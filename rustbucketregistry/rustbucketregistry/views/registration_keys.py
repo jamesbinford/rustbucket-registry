@@ -8,6 +8,7 @@ from datetime import timedelta
 
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_POST, require_GET
@@ -200,3 +201,32 @@ def revoke_registration_key(request, key_id):
         'status': 'success',
         'message': f'Registration key "{reg_key.name}" has been revoked'
     })
+
+
+@login_required
+def registration_keys_view(request):
+    """Render the registration keys management page.
+
+    Admin-only page that displays all registration keys and allows
+    creating new keys and revoking unused ones.
+
+    Args:
+        request: HTTP request object
+
+    Returns:
+        Rendered registration_keys.html template
+    """
+    # Check if user is admin
+    is_admin = request.user.is_superuser
+    if hasattr(request.user, 'profile'):
+        is_admin = is_admin or request.user.profile.is_admin()
+
+    if not is_admin:
+        from django.shortcuts import redirect
+        return redirect('home')
+
+    keys = RegistrationKey.objects.all().select_related(
+        'created_by', 'used_by_rustbucket'
+    ).order_by('-created_at')
+
+    return render(request, 'registration_keys.html', {'keys': keys})
