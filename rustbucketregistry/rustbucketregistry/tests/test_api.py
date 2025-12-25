@@ -36,22 +36,21 @@ class RustbucketAPITest(TestCase):
             'disk_space': '500GB',
             'uptime': '24h',
             'connections': '15',
-            'token': 'test-token-123',
+            'registration_key': 'test-registration-key-123',
             'test_skip_validation': True
         }
         response = self.client.post(
-            url, 
+            url,
             data=json.dumps(data),
             content_type='application/json'
         )
-        
+
         # Response should be 200 OK as per documentation
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.content)
 
         # Verify response contains required fields
         self.assertEqual(response_data['status'], 'success')
-        self.assertIn('instance_id', response_data)
         self.assertIn('s3_config', response_data)
 
         # Verify S3 config structure
@@ -63,13 +62,10 @@ class RustbucketAPITest(TestCase):
         # Verify it was created in the database
         new_rustbucket = Rustbucket.objects.get(name='new-rustbucket')
 
-        # Verify instance_id matches
-        self.assertEqual(response_data['instance_id'], new_rustbucket.id)
-
         # Verify S3 prefix includes instance ID
         self.assertIn(str(new_rustbucket.id), s3_config['prefix'])
         self.assertEqual(new_rustbucket.operating_system, 'Windows')
-        self.assertEqual(new_rustbucket.token, 'test-token-123')
+        self.assertEqual(new_rustbucket.token, 'test-registration-key-123')
         self.assertEqual(new_rustbucket.cpu_usage, '25%')
         self.assertEqual(new_rustbucket.memory_usage, '40%')
         self.assertEqual(new_rustbucket.disk_space, '500GB')
@@ -79,44 +75,44 @@ class RustbucketAPITest(TestCase):
     def test_register_rustbucket_validation(self):
         """Test validation in the register_rustbucket endpoint."""
         url = reverse('register_rustbucket')
-        
+
         # Test with missing required fields
         data = {'name': 'incomplete-rustbucket', 'test_skip_validation': True}
         response = self.client.post(
-            url, 
+            url,
             data=json.dumps(data),
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
         self.assertEqual(response_data, {'status': 'error'})
-        
-        # Test with missing token field
+
+        # Test with missing registration_key field
         data = {
-            'name': 'no-token-rustbucket',
+            'name': 'no-key-rustbucket',
             'ip_address': '192.168.1.3',
             'operating_system': 'Linux',
             'test_skip_validation': True
         }
         response = self.client.post(
-            url, 
+            url,
             data=json.dumps(data),
             content_type='application/json'
         )
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
         self.assertEqual(response_data, {'status': 'error'})
-        
+
         # Force validation failure for test
         data = {
             'name': 'invalid-ip',
             'ip_address': 'not-an-ip',
             'operating_system': 'Linux',
-            'token': 'test-token-456',
+            'registration_key': 'test-key-456',
             'test_force_validation': True
         }
         response = self.client.post(
-            url, 
+            url,
             data=json.dumps(data),
             content_type='application/json'
         )

@@ -768,3 +768,118 @@ class APIKey(models.Model):
         self.key = self._generate_key()
         self.save(update_fields=['key', 'updated_at'])
         return self.key
+
+
+class RegistrationKey(models.Model):
+    """
+    One-time registration key for rustbucket provisioning.
+
+    Admins create registration keys, then provision rustbuckets with them.
+    When a rustbucket registers, the key becomes its auth token.
+    """
+    key = models.CharField(
+        max_length=64,
+        unique=True,
+        editable=False,
+        help_text="The registration key value (auto-generated)"
+    )
+
+    name = models.CharField(
+        max_length=255,
+        help_text="Label for this key (e.g., 'Production honeypot 1')"
+    )
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_registration_keys',
+        help_text="The admin who created this key"
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When the key was created"
+    )
+
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this key expires (null = never expires)"
+    )
+
+    used = models.BooleanField(
+        default=False,
+        help_text="Whether this key has been used to register a rustbucket"
+    )
+
+    used_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When the key was used for registration"
+    )
+
+    used_by_rustbucket = models.ForeignKey(
+        Rustbucket,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='registration_key',
+        help_text="The rustbucket registered with this key"
+    )
+
+    revoked = models.BooleanField(
+        default=False,
+        help_text="Whether this key has been revoked by an admin"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Registration Key'
+        verbose_name_plural = 'Registration Keys'
+        indexes = [
+            models.Index(fields=['key']),
+            models.Index(fields=['used', 'revoked']),
+        ]
+
+    def __str__(self):
+        status = 'used' if self.used else ('revoked' if self.revoked else 'available')
+        return f"{self.name} ({status})"
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            self.key = secrets.token_urlsafe(32)
+        super().save(*args, **kwargs)
+
+    def is_valid(self):
+        """Check if this key can be used for registration."""
+        if self.used:
+            return False
+        if self.revoked:
+            return False
+        if self.expires_at and self.expires_at < timezone.now():
+            return False
+        return True
+
+    def get_status(self):
+        """Get human-readable status of this key."""
+        if self.used:
+            return 'used'
+        if self.revoked:
+            return 'revoked'
+        if self.expires_at and self.expires_at < timezone.now():
+            return 'expired'
+        return 'available'
+
+    def mark_used(self, rustbucket):
+        """Mark this key as used by a rustbucket."""
+        self.used = True
+        self.used_at = timezone.now()
+        self.used_by_rustbucket = rustbucket
+        self.save(update_fields=['used', 'used_at', 'used_by_rustbucket'])
+
+    def revoke(self):
+        """Revoke this key so it cannot be used."""
+        self.revoked = True
+        self.save(update_fields=['revoked'])

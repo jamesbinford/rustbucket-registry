@@ -43,6 +43,11 @@ from rustbucketregistry.views.api_keys import (
     revoke_api_key,
     rotate_api_key,
 )
+from rustbucketregistry.views.registration_keys import (
+    create_registration_key,
+    list_registration_keys,
+    revoke_registration_key,
+)
 
 # Main URL patterns
 urlpatterns = [
@@ -86,4 +91,9 @@ urlpatterns = [
     path('api/keys/<str:rustbucket_id>/create/', create_api_key, name='create_api_key'),
     path('api/keys/<int:api_key_id>/revoke/', revoke_api_key, name='revoke_api_key'),
     path('api/keys/<int:api_key_id>/rotate/', rotate_api_key, name='rotate_api_key'),
+
+    # Registration Key Management (Admin only - RBAC applied in views)
+    path('api/registration-keys/', list_registration_keys, name='list_registration_keys'),
+    path('api/registration-keys/create/', create_registration_key, name='create_registration_key'),
+    path('api/registration-keys/<int:key_id>/revoke/', revoke_registration_key, name='revoke_registration_key'),
 ]

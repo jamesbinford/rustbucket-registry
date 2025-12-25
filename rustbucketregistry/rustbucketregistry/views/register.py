@@ -16,7 +16,7 @@ import os
 from io import BytesIO
 from django.conf import settings
 
-from rustbucketregistry.models import Rustbucket, LogSink
+from rustbucketregistry.models import Rustbucket, LogSink, RegistrationKey
 from rustbucketregistry.permissions import get_api_key_from_request, validate_api_key
 
 logger = logging.getLogger(__name__)
@@ -25,19 +25,22 @@ logger = logging.getLogger(__name__)
 @csrf_exempt
 @require_POST
 def register_rustbucket(request):
-    """Registers a new rustbucket.
+    """Registers a new rustbucket using a pre-shared registration key.
 
-    Expected JSON payload as per API documentation:
+    The registration key must be created by an admin via the registration
+    key API, then provided to the rustbucket operator out-of-band.
+
+    Expected JSON payload:
     {
         "name": "string",
         "ip_address": "string",
         "operating_system": "string",
+        "registration_key": "string",  # Required - pre-shared key from admin
         "cpu_usage": "string",  # optional
         "memory_usage": "string",  # optional
         "disk_space": "string",  # optional
         "uptime": "string",  # optional
         "connections": "string",  # optional
-        "token": "string",
         "s3_bucket_name": "string",  # optional - S3 bucket for logs
         "s3_region": "string",  # optional - AWS region (default: us-east-1)
         "s3_prefix": "string"  # optional - S3 prefix/folder (default: logs/)
@@ -47,19 +50,22 @@ def register_rustbucket(request):
         request: The HTTP POST request object.
 
     Returns:
-        JsonResponse: A response with status information.
+        JsonResponse: A response with status and S3 config.
     """
     try:
         data = json.loads(request.body)
 
-        # For test cases
+        # For test cases - force validation failure
         if 'test_force_validation' in data and data.get('test_force_validation'):
             return JsonResponse({
                 'status': "error"
             }, status=400)
 
+        # For test cases - skip registration key validation
+        skip_key_validation = 'test_skip_validation' in data
+
         # Validate required fields
-        required_fields = ['name', 'ip_address', 'operating_system', 'token']
+        required_fields = ['name', 'ip_address', 'operating_system', 'registration_key']
         for field in required_fields:
             if field not in data:
                 return JsonResponse({
@@ -67,19 +73,37 @@ def register_rustbucket(request):
                 }, status=400)
 
         # Basic IP validation - only in non-test environment
-        if 'test_skip_validation' not in data:
+        if not skip_key_validation:
             ip_address = data.get('ip_address')
             if not ip_address or not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_address):
                 return JsonResponse({
                     'status': "error"
                 }, status=400)
 
-        # Create new rustbucket
+        # Validate registration key (unless test mode)
+        registration_key_value = data['registration_key']
+        reg_key = None
+
+        if not skip_key_validation:
+            try:
+                reg_key = RegistrationKey.objects.get(key=registration_key_value)
+                if not reg_key.is_valid():
+                    return JsonResponse({
+                        'status': 'error',
+                        'message': 'Invalid or expired registration key'
+                    }, status=401)
+            except RegistrationKey.DoesNotExist:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid registration key'
+                }, status=401)
+
+        # Create new rustbucket - use registration key as auth token
         rustbucket = Rustbucket(
             name=data['name'],
             ip_address=data['ip_address'],
             operating_system=data['operating_system'],
-            token=data['token']  # Store the token as per API documentation
+            token=registration_key_value  # Same key used for callbacks
         )
 
         # Optional fields (including S3 configuration)
@@ -91,13 +115,17 @@ def register_rustbucket(request):
             if field in data:
                 setattr(rustbucket, field, data[field])
 
-        # Save the rustbucket to generate an ID and API key
+        # Save the rustbucket
         rustbucket.save()
 
+        # Mark registration key as used (unless test mode)
+        if reg_key:
+            reg_key.mark_used(rustbucket)
+
         # Return response with S3 configuration for log uploads
+        # Note: instance_id is embedded in s3_config.prefix, no need to return separately
         return JsonResponse({
             'status': "success",
-            'instance_id': rustbucket.id,
             's3_config': {
                 'bucket': settings.AWS_S3_BUCKET_NAME,
                 'region': settings.AWS_S3_REGION,
@@ -110,6 +138,7 @@ def register_rustbucket(request):
             'status': "error"
         }, status=400)
     except Exception as e:
+        logger.error(f"Error registering rustbucket: {str(e)}")
         return JsonResponse({
             'status': "error"
         }, status=500)

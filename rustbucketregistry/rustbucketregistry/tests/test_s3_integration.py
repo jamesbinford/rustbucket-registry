@@ -277,7 +277,7 @@ class RegistrationWithS3ConfigTest(TestCase):
             'name': 's3-enabled-rustbucket',
             'ip_address': '10.0.0.50',
             'operating_system': 'Ubuntu 22.04',
-            'token': 'test-token-s3-123',
+            'registration_key': 'test-key-s3-123',
             's3_bucket_name': 'my-rustbucket-logs',
             's3_region': 'eu-west-1',
             's3_prefix': 'production/logs/',
@@ -305,7 +305,7 @@ class RegistrationWithS3ConfigTest(TestCase):
             'name': 'minimal-s3-rustbucket',
             'ip_address': '10.0.0.51',
             'operating_system': 'Amazon Linux 2',
-            'token': 'test-token-minimal-456',
+            'registration_key': 'test-key-minimal-456',
             's3_bucket_name': 'minimal-logs-bucket',
             's3_region': 'us-east-1',
             'test_skip_validation': True
@@ -330,7 +330,7 @@ class RegistrationWithS3ConfigTest(TestCase):
             'name': 'legacy-rustbucket',
             'ip_address': '10.0.0.52',
             'operating_system': 'Debian',
-            'token': 'test-token-legacy-789',
+            'registration_key': 'test-key-legacy-789',
             'test_skip_validation': True
         }
 
