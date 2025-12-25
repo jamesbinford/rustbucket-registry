@@ -1,34 +1,19 @@
+{% load static %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RustBucket LogSinks</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: #f5f5f5;
-        }
-        .container {
-            max-width: 1300px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-        }
-        h1 {
-            color: #333;
-        }
+        /* Page-specific styles */
+        .container { max-width: 1300px; }
         .page-layout {
             display: flex;
             gap: 20px;
         }
-        .logsinks-table {
-            flex: 2;
-        }
+        .logsinks-table { flex: 2; }
         .log-analysis {
             flex: 1;
             background-color: #f9f9f9;
@@ -36,39 +21,9 @@
             border-radius: 5px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            padding: 10px 12px;
-            text-align: left;
-            border-bottom: 1px solid #ddd;
-        }
-        th {
-            background-color: #f8f8f8;
-            color: #333;
-            font-weight: bold;
-        }
-        tr:hover {
-            background-color: #f1f1f1;
-        }
-        .status-active {
-            color: green;
-        }
-        .status-inactive {
-            color: red;
-        }
-        .alert-high {
-            background-color: #ffebee;
-        }
-        .alert-medium {
-            background-color: #fff8e1;
-        }
-        .alert-low {
-            background-color: #f1f8e9;
-        }
+        th, td { padding: 10px 12px; }
+        .status-active { color: green; }
+        .status-inactive { color: red; }
         .summary-heading {
             margin-top: 0;
             font-size: 1.2em;
@@ -90,35 +45,7 @@
             font-size: 0.9em;
             color: #555;
         }
-        .badge {
-            display: inline-block;
-            padding: 3px 8px;
-            border-radius: 3px;
-            font-size: 0.8em;
-            font-weight: bold;
-        }
-        .badge-error {
-            background-color: #ffebee;
-            color: #c62828;
-        }
-        .badge-warning {
-            background-color: #fff8e1;
-            color: #ef6c00;
-        }
-        .badge-info {
-            background-color: #e3f2fd;
-            color: #1565c0;
-        }
-        a {
-            color: #2196F3;
-            text-decoration: none;
-        }
-        a:hover {
-            text-decoration: underline;
-        }
-        .nav-links {
-            margin-bottom: 20px;
-        }
+        .badge { padding: 3px 8px; font-size: 0.8em; }
     </style>
 </head>
 <body>
