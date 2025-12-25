@@ -471,10 +471,7 @@ def api_key_required(view_func):
         api_key_value = get_api_key_from_request(request)
 
         if not api_key_value:
-            return JsonResponse({
-                'success': False,
-                'message': 'Missing API key'
-            }, status=401)
+            return JsonResponse({'error': 'Missing API key'}, status=401)
 
         api_key, rustbucket = validate_api_key(api_key_value)
 
@@ -487,10 +484,7 @@ def api_key_required(view_func):
                 request=request,
                 success=False
             )
-            return JsonResponse({
-                'success': False,
-                'message': 'Invalid or expired API key'
-            }, status=401)
+            return JsonResponse({'error': 'Invalid or expired API key'}, status=401)
 
         # Attach to request for use in view
         request.api_key = api_key

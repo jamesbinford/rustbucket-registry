@@ -41,10 +41,7 @@ def create_registration_key(request):
 
     name = data.get('name')
     if not name:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Name is required'
-        }, status=400)
+        return JsonResponse({'error': 'Name is required'}, status=400)
 
     # Calculate expiration if provided
     expires_at = None
@@ -53,10 +50,7 @@ def create_registration_key(request):
         try:
             expires_at = timezone.now() + timedelta(days=int(expires_in_days))
         except (ValueError, TypeError):
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Invalid expires_in_days value'
-            }, status=400)
+            return JsonResponse({'error': 'Invalid expires_in_days value'}, status=400)
 
     # Create the registration key
     reg_key = RegistrationKey(
@@ -144,22 +138,15 @@ def revoke_registration_key(request, key_id):
     try:
         reg_key = RegistrationKey.objects.get(id=key_id)
     except RegistrationKey.DoesNotExist:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Registration key not found'
-        }, status=404)
+        return JsonResponse({'error': 'Registration key not found'}, status=404)
 
     if reg_key.used:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Cannot revoke a key that has already been used'
-        }, status=400)
+        return JsonResponse(
+            {'error': 'Cannot revoke a key that has already been used'}, status=400
+        )
 
     if reg_key.revoked:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Key is already revoked'
-        }, status=400)
+        return JsonResponse({'error': 'Key is already revoked'}, status=400)
 
     reg_key.revoke()
 

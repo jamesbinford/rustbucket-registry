@@ -178,7 +178,7 @@ class APIKeyManagementEndpointsTest(TestCase):
 
         self.assertEqual(response.status_code, 400)
         data = response.json()
-        self.assertFalse(data['success'])
+        self.assertIn('error', data)
 
     def test_revoke_api_key(self):
         """Test revoking an API key."""

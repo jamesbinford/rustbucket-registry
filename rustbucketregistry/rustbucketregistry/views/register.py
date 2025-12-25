@@ -57,9 +57,7 @@ def register_rustbucket(request):
 
         # For test cases - force validation failure
         if 'test_force_validation' in data and data.get('test_force_validation'):
-            return JsonResponse({
-                'status': "error"
-            }, status=400)
+            return JsonResponse({'error': 'Validation failed'}, status=400)
 
         # For test cases - skip registration key validation
         skip_key_validation = 'test_skip_validation' in data
@@ -68,17 +66,13 @@ def register_rustbucket(request):
         required_fields = ['name', 'ip_address', 'operating_system', 'registration_key']
         for field in required_fields:
             if field not in data:
-                return JsonResponse({
-                    'status': "error"
-                }, status=400)
+                return JsonResponse({'error': f'Missing required field: {field}'}, status=400)
 
         # Basic IP validation - only in non-test environment
         if not skip_key_validation:
             ip_address = data.get('ip_address')
             if not ip_address or not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_address):
-                return JsonResponse({
-                    'status': "error"
-                }, status=400)
+                return JsonResponse({'error': 'Invalid IP address format'}, status=400)
 
         # Validate registration key (unless test mode)
         registration_key_value = data['registration_key']
@@ -88,15 +82,11 @@ def register_rustbucket(request):
             try:
                 reg_key = RegistrationKey.objects.get(key=registration_key_value)
                 if not reg_key.is_valid():
-                    return JsonResponse({
-                        'status': 'error',
-                        'message': 'Invalid or expired registration key'
-                    }, status=401)
+                    return JsonResponse(
+                        {'error': 'Invalid or expired registration key'}, status=401
+                    )
             except RegistrationKey.DoesNotExist:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Invalid registration key'
-                }, status=401)
+                return JsonResponse({'error': 'Invalid registration key'}, status=401)
 
         # Create new rustbucket - use registration key as auth token
         rustbucket = Rustbucket(
@@ -134,14 +124,10 @@ def register_rustbucket(request):
         }, status=200)
 
     except json.JSONDecodeError:
-        return JsonResponse({
-            'status': "error"
-        }, status=400)
+        return JsonResponse({'error': 'Invalid JSON'}, status=400)
     except Exception as e:
         logger.error(f"Error registering rustbucket: {str(e)}")
-        return JsonResponse({
-            'status': "error"
-        }, status=500)
+        return JsonResponse({'error': 'Internal server error'}, status=500)
 
 
 def pull_bucket_updates():
@@ -245,10 +231,7 @@ def update_buckets(request):
     """
     # Only authenticated admin users can trigger updates
     if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Authentication required'
-        }, status=401)
+        return JsonResponse({'error': 'Authentication required'}, status=401)
 
     try:
         # Call the pull_bucket_updates function
@@ -256,10 +239,7 @@ def update_buckets(request):
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"Error in update_buckets: {str(e)}")
-        return JsonResponse({
-            'status': 'error',
-            'message': f"Error: {str(e)}"
-        }, status=500)
+        return JsonResponse({'error': f"Error: {str(e)}"}, status=500)
 
 
 def extract_logs_from_s3(rustbucket, registry_s3_client=None):
@@ -528,10 +508,7 @@ def extract_logs(request):
     """
     # Only authenticated admin users can trigger log extraction
     if not request.user.is_authenticated or not request.user.is_staff:
-        return JsonResponse({
-            'status': 'error',
-            'message': 'Authentication required'
-        }, status=401)
+        return JsonResponse({'error': 'Authentication required'}, status=401)
 
     try:
         # Call the extract_logs_from_buckets function
@@ -539,10 +516,7 @@ def extract_logs(request):
         return JsonResponse(result)
     except Exception as e:
         logger.error(f"Error in extract_logs: {str(e)}")
-        return JsonResponse({
-            'status': 'error',
-            'message': f"Error: {str(e)}"
-        }, status=500)
+        return JsonResponse({'error': f"Error: {str(e)}"}, status=500)
 
 
 @require_GET
@@ -561,20 +535,14 @@ def get_rustbucket(request, rustbucket_id=None):
             try:
                 rustbucket = Rustbucket.objects.get(id=rustbucket_id)
             except Rustbucket.DoesNotExist:
-                return JsonResponse({
-                    'success': False,
-                    'message': "Rustbucket not found"
-                }, status=404)
+                return JsonResponse({'error': 'Rustbucket not found'}, status=404)
         else:
             # Try API key authentication for getting own rustbucket info
             api_key_value = get_api_key_from_request(request)
             if api_key_value:
                 api_key, rustbucket = validate_api_key(api_key_value)
                 if not api_key:
-                    return JsonResponse({
-                        'success': False,
-                        'message': "Invalid API key"
-                    }, status=401)
+                    return JsonResponse({'error': 'Invalid API key'}, status=401)
             else:
                 # Return all rustbuckets (limited information) - for authenticated users
                 rustbuckets = Rustbucket.objects.all()
@@ -611,7 +579,4 @@ def get_rustbucket(request, rustbucket_id=None):
         return JsonResponse(response)
 
     except Exception as e:
-        return JsonResponse({
-            'success': False,
-            'message': f"Error: {str(e)}"
-        }, status=500)
+        return JsonResponse({'error': f"Error: {str(e)}"}, status=500)

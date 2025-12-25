@@ -71,18 +71,12 @@ def create_api_key(request, rustbucket_id):
         try:
             rustbucket = Rustbucket.objects.get(id=rustbucket_id)
         except Rustbucket.DoesNotExist:
-            return JsonResponse({
-                'success': False,
-                'message': 'Rustbucket not found'
-            }, status=404)
+            return JsonResponse({'error': 'Rustbucket not found'}, status=404)
 
         # Validate name
         name = data.get('name')
         if not name:
-            return JsonResponse({
-                'success': False,
-                'message': 'Missing required field: name'
-            }, status=400)
+            return JsonResponse({'error': 'Missing required field: name'}, status=400)
 
         # Parse expiration
         expires_at = None
@@ -90,10 +84,9 @@ def create_api_key(request, rustbucket_id):
             try:
                 expires_at = timezone.datetime.fromisoformat(data['expires_at'])
             except (ValueError, TypeError):
-                return JsonResponse({
-                    'success': False,
-                    'message': 'Invalid expires_at format (use ISO format)'
-                }, status=400)
+                return JsonResponse(
+                    {'error': 'Invalid expires_at format (use ISO format)'}, status=400
+                )
 
         # Create API key
         api_key = APIKey.objects.create(
@@ -127,10 +120,7 @@ def create_api_key(request, rustbucket_id):
         }, status=201)
 
     except json.JSONDecodeError:
-        return JsonResponse({
-            'success': False,
-            'message': 'Invalid JSON payload'
-        }, status=400)
+        return JsonResponse({'error': 'Invalid JSON payload'}, status=400)
 
 
 @csrf_exempt
@@ -145,10 +135,7 @@ def revoke_api_key(request, api_key_id):
     try:
         api_key = APIKey.objects.get(id=api_key_id)
     except APIKey.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'message': 'API key not found'
-        }, status=404)
+        return JsonResponse({'error': 'API key not found'}, status=404)
 
     api_key.revoke()
 
@@ -180,10 +167,7 @@ def rotate_api_key(request, api_key_id):
     try:
         api_key = APIKey.objects.get(id=api_key_id)
     except APIKey.DoesNotExist:
-        return JsonResponse({
-            'success': False,
-            'message': 'API key not found'
-        }, status=404)
+        return JsonResponse({'error': 'API key not found'}, status=404)
 
     old_prefix = api_key.key[:8] + '...'
     new_key = api_key.regenerate()

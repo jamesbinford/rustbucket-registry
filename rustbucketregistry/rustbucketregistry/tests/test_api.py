@@ -85,7 +85,7 @@ class RustbucketAPITest(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
-        self.assertEqual(response_data, {'status': 'error'})
+        self.assertIn('error', response_data)
 
         # Test with missing registration_key field
         data = {
@@ -101,7 +101,7 @@ class RustbucketAPITest(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
-        self.assertEqual(response_data, {'status': 'error'})
+        self.assertIn('error', response_data)
 
         # Force validation failure for test
         data = {
@@ -118,7 +118,7 @@ class RustbucketAPITest(TestCase):
         )
         self.assertEqual(response.status_code, 400)
         response_data = json.loads(response.content)
-        self.assertEqual(response_data, {'status': 'error'})
+        self.assertIn('error', response_data)
     
     def test_get_rustbucket(self):
         """Test the get_rustbucket endpoint."""
