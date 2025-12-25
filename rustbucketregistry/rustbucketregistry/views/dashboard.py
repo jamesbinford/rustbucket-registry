@@ -3,6 +3,7 @@
 This module contains view functions for the analytics dashboard,
 including chart data APIs and summary statistics.
 """
+import functools
 from datetime import datetime, timedelta
 
 from django.shortcuts import render
@@ -22,6 +23,50 @@ from rustbucketregistry.permissions import (
 
 # Cache timeout in seconds (1 minute for real-time feel)
 CACHE_TIMEOUT = 60
+
+
+def cached_dashboard_api(cache_key_prefix):
+    """Decorator that adds caching to dashboard API endpoints.
+
+    Builds cache key from prefix, range param, user id, and optional bucket_id.
+    Returns cached JsonResponse if available, otherwise calls view and caches result.
+
+    Args:
+        cache_key_prefix: String prefix for the cache key (e.g., 'dashboard_overview')
+
+    Usage:
+        @cached_dashboard_api('dashboard_overview')
+        def dashboard_overview_api(request):
+            # Return dict, not JsonResponse
+            return {'total': 100, ...}
+    """
+    def decorator(view_func):
+        @functools.wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            # Build cache key components
+            range_param = request.GET.get('range', '7d')
+            user_id = request.user.id
+            bucket_id = kwargs.get('bucket_id', 'all')
+            cache_key = f'{cache_key_prefix}_{range_param}_{bucket_id}_{user_id}'
+
+            # Try cache first
+            cached_data = cache.get(cache_key)
+            if cached_data:
+                return JsonResponse(cached_data)
+
+            # Call view to get data dict
+            result = view_func(request, *args, **kwargs)
+
+            # If view returned a JsonResponse directly (e.g., error), return it
+            if isinstance(result, JsonResponse):
+                return result
+
+            # Cache and return
+            cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
+            return JsonResponse(result)
+
+        return wrapper
+    return decorator
 
 
 def get_time_range(request):
@@ -103,6 +148,7 @@ def dashboard_view(request):
 
 
 @login_required
+@cached_dashboard_api('dashboard_overview')
 def dashboard_overview_api(request):
     """API endpoint for dashboard summary statistics.
 
@@ -112,18 +158,9 @@ def dashboard_overview_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Summary statistics including rustbucket counts,
+        dict: Summary statistics including rustbucket counts,
             attack totals, and unresolved alerts.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_overview_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     start, end = get_time_range(request)
 
     # Get accessible rustbuckets for the user
@@ -142,7 +179,7 @@ def dashboard_overview_api(request):
         is_resolved=False
     ).count()
 
-    data = {
+    return {
         'total_rustbuckets': total_rustbuckets,
         'active_rustbuckets': active_rustbuckets,
         'total_attacks': total_attacks,
@@ -153,11 +190,9 @@ def dashboard_overview_api(request):
         }
     }
 
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
-
 
 @login_required
+@cached_dashboard_api('dashboard_attacks')
 def dashboard_attacks_api(request):
     """API endpoint for attack trends over time (line chart data).
 
@@ -167,18 +202,9 @@ def dashboard_attacks_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Labels and datasets for line chart showing
+        dict: Labels and datasets for line chart showing
             attack counts by type over time.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_attacks_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     start, end = get_time_range(request)
 
     # Attack data is now in log files, not tracked separately
@@ -206,16 +232,14 @@ def dashboard_attacks_api(request):
             'fill': False
         })
 
-    data = {
+    return {
         'labels': sorted_dates,
         'datasets': datasets
     }
 
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
-
 
 @login_required
+@cached_dashboard_api('dashboard_top_ips')
 def dashboard_top_ips_api(request):
     """API endpoint for top attacking IPs (bar chart data).
 
@@ -225,30 +249,19 @@ def dashboard_top_ips_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Labels (IP addresses) and data (attack counts)
+        dict: Labels (IP addresses) and data (attack counts)
             for bar chart showing top 10 attacking IPs.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_top_ips_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     # Attack IP data is now in log files, not tracked separately
-    data = {
+    return {
         'labels': [],
         'data': [],
         'limit': 10
     }
 
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
-
 
 @login_required
+@cached_dashboard_api('dashboard_countries')
 def dashboard_countries_api(request):
     """API endpoint for attacks by country (bar chart data).
 
@@ -259,31 +272,20 @@ def dashboard_countries_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Labels (country names), codes, and data (attack counts)
+        dict: Labels (country names), codes, and data (attack counts)
             for bar chart showing top 10 attacking countries.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_countries_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     # Attack country data is now in log files, not tracked separately
-    data = {
+    return {
         'labels': [],
         'codes': [],
         'data': [],
         'limit': 10
     }
 
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
-
 
 @login_required
+@cached_dashboard_api('dashboard_alerts')
 def dashboard_alerts_api(request):
     """API endpoint for alert frequency by type (pie chart data).
 
@@ -293,18 +295,9 @@ def dashboard_alerts_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Labels (alert types), data (counts), and colors
+        dict: Labels (alert types), data (counts), and colors
             for pie chart showing alert distribution.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_alerts_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     start, end = get_time_range(request)
 
     # Get accessible rustbuckets for the user
@@ -333,18 +326,16 @@ def dashboard_alerts_api(request):
     }
     colors = [color_map.get(label, '#757575') for label in labels]
 
-    data = {
+    return {
         'labels': labels,
         'data': counts,
         'colors': colors
     }
 
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
-
 
 @login_required
 @rustbucket_access_required('view')
+@cached_dashboard_api('dashboard_resources')
 def dashboard_resources_api(request, bucket_id=None):
     """API endpoint for current resource usage (card data).
 
@@ -355,17 +346,9 @@ def dashboard_resources_api(request, bucket_id=None):
         bucket_id: Optional bucket ID to filter by.
 
     Returns:
-        JsonResponse: Current resource values (CPU, memory, disk)
+        dict: Current resource values (CPU, memory, disk)
             for rustbuckets, displayed as cards/gauges.
     """
-    user_id = request.user.id
-    cache_key = f'dashboard_resources_{bucket_id or "all"}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     # Get accessible rustbuckets for the user
     accessible_rustbuckets = filter_rustbuckets_for_user(request.user)
 
@@ -399,15 +382,11 @@ def dashboard_resources_api(request, bucket_id=None):
             'connections': int(bucket.connections) if bucket.connections else 0
         })
 
-    data = {
-        'rustbuckets': buckets_data
-    }
-
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
+    return {'rustbuckets': buckets_data}
 
 
 @login_required
+@cached_dashboard_api('dashboard_targets')
 def dashboard_targets_api(request):
     """API endpoint for most targeted rustbuckets (bar chart data).
 
@@ -417,24 +396,12 @@ def dashboard_targets_api(request):
         request: The HTTP request object.
 
     Returns:
-        JsonResponse: Labels (bucket names), bucket_ids, and data (attack counts)
+        dict: Labels (bucket names), bucket_ids, and data (attack counts)
             for bar chart showing most targeted rustbuckets.
     """
-    range_param = request.GET.get('range', '7d')
-    user_id = request.user.id
-    cache_key = f'dashboard_targets_{range_param}_{user_id}'
-
-    # Try cache first
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return JsonResponse(cached_data)
-
     # Attack target data is now in log files, not tracked separately
-    data = {
+    return {
         'labels': [],
         'bucket_ids': [],
         'data': []
     }
-
-    cache.set(cache_key, data, timeout=CACHE_TIMEOUT)
-    return JsonResponse(data)
