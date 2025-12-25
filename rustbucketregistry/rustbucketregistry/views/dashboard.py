@@ -6,23 +6,20 @@ including chart data APIs and summary statistics.
 import functools
 from datetime import datetime, timedelta
 
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.utils import timezone
-from django.db.models import Count
-from django.core.cache import cache
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
+from django.core.cache import cache
+from django.db.models import Count
+from django.http import JsonResponse
+from django.shortcuts import render
+from django.utils import timezone
 
-from rustbucketregistry.models import Rustbucket, Alert
+from rustbucketregistry.models import Alert, Rustbucket
 from rustbucketregistry.permissions import (
     filter_rustbuckets_for_user,
-    rustbucket_access_required,
     get_user_profile,
+    rustbucket_access_required,
 )
-
-
-# Cache timeout in seconds (1 minute for real-time feel)
-CACHE_TIMEOUT = 60
 
 
 def cached_dashboard_api(cache_key_prefix):
@@ -62,7 +59,7 @@ def cached_dashboard_api(cache_key_prefix):
                 return result
 
             # Cache and return
-            cache.set(cache_key, result, timeout=CACHE_TIMEOUT)
+            cache.set(cache_key, result, timeout=settings.DASHBOARD_CACHE_TIMEOUT)
             return JsonResponse(result)
 
         return wrapper

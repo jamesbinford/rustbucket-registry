@@ -39,33 +39,28 @@ def start():
         health_check_rustbuckets,
     )
 
-    # Schedule tasks
-    # Note: You can adjust these intervals based on your needs
-
-    # Pull rustbucket updates every 5 minutes
+    # Schedule tasks using intervals from settings (configurable via env vars)
     scheduler.add_job(
         pull_rustbucket_updates,
-        trigger=IntervalTrigger(minutes=5),
+        trigger=IntervalTrigger(minutes=settings.SCHEDULER_PULL_UPDATES_INTERVAL),
         id='pull_rustbucket_updates',
         name='Pull Rustbucket Updates',
         replace_existing=True,
-        max_instances=1,  # Prevent overlapping runs
+        max_instances=1,
     )
 
-    # Extract logs every 15 minutes
     scheduler.add_job(
         extract_logs_from_rustbuckets,
-        trigger=IntervalTrigger(minutes=15),
+        trigger=IntervalTrigger(minutes=settings.SCHEDULER_EXTRACT_LOGS_INTERVAL),
         id='extract_logs',
         name='Extract Logs from Rustbuckets',
         replace_existing=True,
         max_instances=1,
     )
 
-    # Health check every 10 minutes
     scheduler.add_job(
         health_check_rustbuckets,
-        trigger=IntervalTrigger(minutes=10),
+        trigger=IntervalTrigger(minutes=settings.SCHEDULER_HEALTH_CHECK_INTERVAL),
         id='health_check',
         name='Health Check Rustbuckets',
         replace_existing=True,

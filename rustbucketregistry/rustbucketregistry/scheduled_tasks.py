@@ -6,6 +6,8 @@ monitoring, and data collection tasks.
 """
 import logging
 from datetime import timedelta
+
+from django.conf import settings
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -62,7 +64,7 @@ def health_check_rustbuckets():
     Check the health of all rustbuckets and create alerts for unhealthy ones.
 
     A rustbucket is considered unhealthy if:
-    - It hasn't been seen in over 15 minutes
+    - It hasn't been seen within the configured threshold
     - Its status is 'Active' but not responding
     """
     try:
@@ -71,7 +73,7 @@ def health_check_rustbuckets():
         logger.info("Starting rustbucket health checks")
 
         unhealthy_count = 0
-        threshold = timezone.now() - timedelta(minutes=15)
+        threshold = timezone.now() - timedelta(minutes=settings.HEALTH_CHECK_THRESHOLD_MINUTES)
 
         # Get all rustbuckets that should be active
         rustbuckets = Rustbucket.objects.filter(status='Active')

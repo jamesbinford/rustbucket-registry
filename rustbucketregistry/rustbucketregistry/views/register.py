@@ -3,9 +3,9 @@
 This module contains API endpoints for rustbucket registration, updates,
 log extraction, and honeypot activity reporting.
 """
+import ipaddress
 import json
 import logging
-import re
 from io import BytesIO
 
 import boto3
@@ -133,10 +133,12 @@ def register_rustbucket(request):
             if field not in data:
                 return JsonResponse({'error': f'Missing required field: {field}'}, status=400)
 
-        # Basic IP validation - only in non-test environment
+        # IP validation - only in non-test environment
         if not skip_key_validation:
             ip_address = data.get('ip_address')
-            if not ip_address or not re.match(r'^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$', ip_address):
+            try:
+                ipaddress.ip_address(ip_address)
+            except (ValueError, TypeError):
                 return JsonResponse({'error': 'Invalid IP address format'}, status=400)
 
         # Validate registration key (unless test mode)

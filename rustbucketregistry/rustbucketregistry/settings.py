@@ -175,3 +175,14 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000  # 1 year
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+
+# Scheduler task intervals (in minutes)
+SCHEDULER_PULL_UPDATES_INTERVAL = int(os.getenv('SCHEDULER_PULL_UPDATES_INTERVAL', 5))
+SCHEDULER_EXTRACT_LOGS_INTERVAL = int(os.getenv('SCHEDULER_EXTRACT_LOGS_INTERVAL', 15))
+SCHEDULER_HEALTH_CHECK_INTERVAL = int(os.getenv('SCHEDULER_HEALTH_CHECK_INTERVAL', 10))
+
+# Dashboard cache timeout (in seconds)
+DASHBOARD_CACHE_TIMEOUT = int(os.getenv('DASHBOARD_CACHE_TIMEOUT', 60))
+
+# Health check threshold (in minutes) - buckets not seen in this time are unhealthy
+HEALTH_CHECK_THRESHOLD_MINUTES = int(os.getenv('HEALTH_CHECK_THRESHOLD_MINUTES', 15))
