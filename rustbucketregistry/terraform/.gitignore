@@ -31,3 +31,7 @@ terraform.rc
 
 # Backup files
 *.backup
+
+# Plan files
+tfplan
+*.tfplan

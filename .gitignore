@@ -1,4 +1,10 @@
-
-# Local development
+# Virtual environments
 .venv/
+venv/
+env/
+
+# IDE
 .idea/
+
+# Claude Code
+.claude/
