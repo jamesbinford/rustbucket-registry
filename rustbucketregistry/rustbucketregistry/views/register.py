@@ -4,22 +4,87 @@ This module contains API endpoints for rustbucket registration, updates,
 log extraction, and honeypot activity reporting.
 """
 import json
-import re
-from django.http import JsonResponse, HttpResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_GET
-from django.utils import timezone
-import requests
 import logging
-import boto3
-import os
+import re
 from io import BytesIO
-from django.conf import settings
 
-from rustbucketregistry.models import Rustbucket, LogSink, RegistrationKey
+import boto3
+import requests
+from django.conf import settings
+from django.http import JsonResponse
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
+
+from rustbucketregistry.models import LogSink, RegistrationKey, Rustbucket
 from rustbucketregistry.permissions import get_api_key_from_request, validate_api_key
 
 logger = logging.getLogger(__name__)
+
+# Constants
+UPDATE_TIMEOUT_SECONDS = 10
+LOG_EXTRACTION_TIMEOUT_SECONDS = 30
+S3_LIST_MAX_KEYS = 10
+BYTES_PER_MB = 1024 * 1024
+
+
+def _format_file_size(size_bytes):
+    """Convert bytes to a human-readable MB string."""
+    size_mb = size_bytes / BYTES_PER_MB
+    return f"{size_mb:.2f} MB"
+
+
+def _generate_log_filename(rustbucket_id):
+    """Generate a timestamped log filename."""
+    timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
+    return f"{rustbucket_id}_{timestamp}_logs.txt"
+
+
+def _get_registry_s3_client():
+    """Create an S3 client for the registry's bucket.
+
+    Returns:
+        boto3 S3 client or None if credentials not configured.
+    """
+    if not getattr(settings, 'AWS_ACCESS_KEY_ID', None):
+        return None
+    if not getattr(settings, 'AWS_SECRET_ACCESS_KEY', None):
+        return None
+
+    return boto3.client(
+        's3',
+        region_name=getattr(settings, 'AWS_S3_REGION', 'us-east-1'),
+        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
+        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
+    )
+
+
+def _create_or_update_logsink(rustbucket, log_size_str):
+    """Create or update a LogSink entry for log extraction.
+
+    Args:
+        rustbucket: The Rustbucket instance
+        log_size_str: Human-readable size string (e.g., "1.50 MB")
+
+    Returns:
+        The LogSink instance
+    """
+    log_sink, created = LogSink.objects.get_or_create(
+        rustbucket=rustbucket,
+        log_type='Log Extraction',
+        defaults={
+            'size': log_size_str,
+            'status': 'Active',
+            'alert_level': 'low'
+        }
+    )
+
+    if not created:
+        log_sink.size = log_size_str
+        log_sink.last_update = timezone.now()
+        log_sink.save()
+
+    return log_sink
 
 
 @csrf_exempt
@@ -157,8 +222,7 @@ def pull_bucket_updates():
                 'Authorization': f"Token {rustbucket.token}"
             }
 
-            # Request timeout after 10 seconds
-            response = requests.get(update_url, headers=headers, timeout=10)
+            response = requests.get(update_url, headers=headers, timeout=UPDATE_TIMEOUT_SECONDS)
 
             if response.status_code == 200:
                 data = response.json()
@@ -243,8 +307,7 @@ def update_buckets(request):
 
 
 def extract_logs_from_s3(rustbucket, registry_s3_client=None):
-    """
-    Extract logs directly from a rustbucket's S3 bucket.
+    """Extract logs directly from a rustbucket's S3 bucket.
 
     This is more efficient than HTTP pulling as it copies files directly
     between S3 buckets or lists files in the rustbucket's bucket.
@@ -257,7 +320,6 @@ def extract_logs_from_s3(rustbucket, registry_s3_client=None):
         dict: Log extraction result or None if failed
     """
     try:
-        # Get S3 client for the rustbucket's bucket
         s3_client = rustbucket.get_s3_client()
         if not s3_client:
             logger.warning(f"Could not create S3 client for rustbucket {rustbucket.id}")
@@ -268,11 +330,11 @@ def extract_logs_from_s3(rustbucket, registry_s3_client=None):
         response = s3_client.list_objects_v2(
             Bucket=rustbucket.s3_bucket_name,
             Prefix=prefix,
-            MaxKeys=10  # Get recent logs
+            MaxKeys=S3_LIST_MAX_KEYS
         )
 
         if 'Contents' not in response or not response['Contents']:
-            logger.info(f"No logs found in S3 bucket for rustbucket {rustbucket.id}")
+            logger.debug(f"No logs found in S3 bucket for rustbucket {rustbucket.id}")
             return None
 
         # Sort by last modified, get the most recent file
@@ -281,56 +343,26 @@ def extract_logs_from_s3(rustbucket, registry_s3_client=None):
         source_key = latest_file['Key']
 
         # Check if we've already processed this file
-        if rustbucket.last_log_dump and latest_file['LastModified'].replace(tzinfo=None) <= rustbucket.last_log_dump.replace(tzinfo=None):
+        last_dump = rustbucket.last_log_dump
+        if last_dump and latest_file['LastModified'].replace(tzinfo=None) <= last_dump.replace(tzinfo=None):
             logger.debug(f"No new logs for rustbucket {rustbucket.id}")
             return None
 
-        # Get file size
-        file_size = latest_file['Size']
-        file_size_mb = file_size / (1024 * 1024)
-        log_size_str = f"{file_size_mb:.2f} MB"
+        log_size_str = _format_file_size(latest_file['Size'])
 
         # If registry has S3, copy the file there
-        if registry_s3_client and settings.AWS_S3_BUCKET_NAME:
-            timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-            dest_key = f"{rustbucket.id}_{timestamp}_logs.txt"
-
-            # Copy from rustbucket's S3 to registry's S3
-            copy_source = {
-                'Bucket': rustbucket.s3_bucket_name,
-                'Key': source_key
-            }
-
-            registry_s3_client.copy(
-                copy_source,
-                settings.AWS_S3_BUCKET_NAME,
-                dest_key
-            )
-
-            logger.info(f"Copied logs from {rustbucket.s3_bucket_name}/{source_key} to registry S3")
+        if registry_s3_client and getattr(settings, 'AWS_S3_BUCKET_NAME', None):
+            dest_key = _generate_log_filename(rustbucket.id)
+            copy_source = {'Bucket': rustbucket.s3_bucket_name, 'Key': source_key}
+            registry_s3_client.copy(copy_source, settings.AWS_S3_BUCKET_NAME, dest_key)
+            logger.debug(f"Copied logs from {rustbucket.s3_bucket_name}/{source_key} to registry S3")
         else:
-            logger.info(f"Found logs in {rustbucket.s3_bucket_name}/{source_key} (registry S3 not configured)")
+            logger.debug(f"Found logs in {rustbucket.s3_bucket_name}/{source_key} (registry S3 not configured)")
 
-        # Update rustbucket
+        # Update rustbucket and create log sink
         rustbucket.last_log_dump = timezone.now()
         rustbucket.save()
-
-        # Create or update log sink
-        from rustbucketregistry.models import LogSink
-        log_sink, created = LogSink.objects.get_or_create(
-            rustbucket=rustbucket,
-            log_type='Log Extraction',
-            defaults={
-                'size': log_size_str,
-                'status': 'Active',
-                'alert_level': 'low'
-            }
-        )
-
-        if not created:
-            log_sink.size = log_size_str
-            log_sink.last_update = timezone.now()
-            log_sink.save()
+        _create_or_update_logsink(rustbucket, log_size_str)
 
         return {
             'id': rustbucket.id,
@@ -343,6 +375,57 @@ def extract_logs_from_s3(rustbucket, registry_s3_client=None):
     except Exception as e:
         logger.error(f"Error extracting logs from S3 for rustbucket {rustbucket.id}: {str(e)}")
         return None
+
+
+def _extract_logs_via_http(rustbucket, registry_s3_client):
+    """Extract logs from a rustbucket via HTTP.
+
+    Args:
+        rustbucket: Rustbucket instance to extract logs from
+        registry_s3_client: Optional S3 client for storing logs
+
+    Returns:
+        dict: Log extraction result or None if failed
+    """
+    extract_url = f"http://{rustbucket.ip_address}/extract_logs"
+    headers = {'Authorization': f"Token {rustbucket.token}"}
+
+    response = requests.get(
+        extract_url,
+        headers=headers,
+        timeout=LOG_EXTRACTION_TIMEOUT_SECONDS,
+        stream=True
+    )
+
+    if response.status_code != 200:
+        logger.warning(f"Failed to extract logs from rustbucket {rustbucket.id}: HTTP {response.status_code}")
+        return None
+
+    log_size_str = _format_file_size(len(response.content))
+    file_name = _generate_log_filename(rustbucket.id)
+
+    # Store in S3 if available
+    if registry_s3_client:
+        registry_s3_client.upload_fileobj(
+            BytesIO(response.content),
+            settings.AWS_S3_BUCKET_NAME,
+            file_name
+        )
+    else:
+        logger.debug(f"Logs extracted from rustbucket {rustbucket.id} but not stored (no S3 credentials)")
+
+    # Update rustbucket and create log sink
+    rustbucket.last_log_dump = timezone.now()
+    rustbucket.save()
+    _create_or_update_logsink(rustbucket, log_size_str)
+
+    return {
+        'id': rustbucket.id,
+        'name': rustbucket.name,
+        'file_name': file_name,
+        'log_size': log_size_str,
+        'method': 'http'
+    }
 
 
 def extract_logs_from_buckets():
@@ -364,126 +447,36 @@ def extract_logs_from_buckets():
     failed_count = 0
     log_data = []
 
-    # Get all active rustbuckets
     rustbuckets = Rustbucket.objects.filter(status='Active')
-
-    # Initialize registry's S3 client for storing logs
-    registry_s3_client = boto3.client(
-        's3',
-        region_name=settings.AWS_S3_REGION,
-        aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
-        aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY
-    ) if settings.AWS_ACCESS_KEY_ID and settings.AWS_SECRET_ACCESS_KEY else None
+    registry_s3_client = _get_registry_s3_client()
 
     for rustbucket in rustbuckets:
         try:
+            result = None
+
             # Try S3-to-S3 copy first if rustbucket has S3 configured
             if rustbucket.has_s3_configured():
                 result = extract_logs_from_s3(rustbucket, registry_s3_client)
-                if result:
-                    log_data.append(result)
-                    extracted_count += 1
-                    continue  # Skip HTTP pull
-                else:
-                    logger.warning(f"S3 extraction failed for {rustbucket.id}, trying HTTP fallback")
+                if not result:
+                    logger.debug(f"S3 extraction returned no new logs for {rustbucket.id}, trying HTTP")
 
-            # Fall back to HTTP pull method
-            # Construct the log extraction URL using the rustbucket's IP address
-            extract_url = f"http://{rustbucket.ip_address}/extract_logs"
+            # Fall back to HTTP if S3 didn't work or wasn't configured
+            if not result:
+                result = _extract_logs_via_http(rustbucket, registry_s3_client)
 
-            # Add the token for authentication
-            headers = {
-                'Authorization': f"Token {rustbucket.token}"
-            }
-
-            # Request timeout after 30 seconds (logs might be large)
-            response = requests.get(extract_url, headers=headers, timeout=30, stream=True)
-
-            if response.status_code == 200:
-                # Get the content type to determine if it's a file or JSON
-                content_type = response.headers.get('Content-Type', '')
-
-                # Generate a timestamped filename
-                timestamp = timezone.now().strftime('%Y%m%d%H%M%S')
-                file_name = f"{rustbucket.id}_{timestamp}_logs.txt"
-
-                # Store the logs in S3 bucket if credentials are available
-                if registry_s3_client:
-                    try:
-                        # Upload the file to S3
-                        registry_s3_client.upload_fileobj(
-                            BytesIO(response.content),
-                            settings.AWS_S3_BUCKET_NAME,
-                            file_name
-                        )
-
-                        # Update the rustbucket's last_log_dump
-                        rustbucket.last_log_dump = timezone.now()
-                        rustbucket.save()
-
-                        # Calculate the log size in MB
-                        log_size = len(response.content) / (1024 * 1024)  # Convert bytes to MB
-                        log_size_str = f"{log_size:.2f} MB"
-
-                        # Add to the log_data list
-                        log_data.append({
-                            'id': rustbucket.id,
-                            'name': rustbucket.name,
-                            'file_name': file_name,
-                            'log_size': log_size_str,
-                            'method': 'http'
-                        })
-
-                        extracted_count += 1
-
-                        # Create or update a log sink for this extraction
-                        log_sink, created = LogSink.objects.get_or_create(
-                            rustbucket=rustbucket,
-                            log_type='Log Extraction',
-                            defaults={
-                                'size': log_size_str,
-                                'status': 'Active',
-                                'alert_level': 'low'
-                            }
-                        )
-
-                        if not created:
-                            log_sink.size = log_size_str
-                            log_sink.last_update = timezone.now()
-                            log_sink.save()
-
-                    except Exception as e:
-                        # S3 upload error
-                        logger.error(f"Error uploading logs to S3 for rustbucket {rustbucket.id}: {str(e)}")
-                        failed_count += 1
-                else:
-                    # No S3 credentials, just log success and count
-                    logger.info(f"Logs extracted from rustbucket {rustbucket.id} but not stored (no S3 credentials)")
-
-                    # Update the rustbucket's last_log_dump
-                    rustbucket.last_log_dump = timezone.now()
-                    rustbucket.save()
-
-                    # Add to the log_data list
-                    log_data.append({
-                        'id': rustbucket.id,
-                        'name': rustbucket.name,
-                        'log_size': f"{len(response.content) / (1024 * 1024):.2f} MB",
-                        'method': 'http'
-                    })
-
-                    extracted_count += 1
+            if result:
+                log_data.append(result)
+                extracted_count += 1
             else:
-                # Failed to get logs
-                logger.warning(f"Failed to extract logs from rustbucket {rustbucket.id}: HTTP {response.status_code}")
                 failed_count += 1
 
         except requests.RequestException as e:
-            # Connection error
             logger.error(f"Error extracting logs from rustbucket {rustbucket.id}: {str(e)}")
             failed_count += 1
+        except Exception as e:
+            logger.error(f"Unexpected error extracting logs from rustbucket {rustbucket.id}: {str(e)}")
+            failed_count += 1
 
-    # Return summary
     return {
         'status': 'success',
         'total': len(rustbuckets),
