@@ -94,9 +94,15 @@ def register_rustbucket(request):
         # Save the rustbucket to generate an ID and API key
         rustbucket.save()
 
-        # Return response according to API documentation
+        # Return response with S3 configuration for log uploads
         return JsonResponse({
-            'status': "success"
+            'status': "success",
+            'instance_id': rustbucket.id,
+            's3_config': {
+                'bucket': settings.AWS_S3_BUCKET_NAME,
+                'region': settings.AWS_S3_REGION,
+                'prefix': f'honeypot-logs/{rustbucket.id}/'
+            }
         }, status=200)
 
     except json.JSONDecodeError:

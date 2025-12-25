@@ -48,12 +48,26 @@ class RustbucketAPITest(TestCase):
         # Response should be 200 OK as per documentation
         self.assertEqual(response.status_code, 200)
         response_data = json.loads(response.content)
-        
-        # Verify response format matches documentation
-        self.assertEqual(response_data, {'status': 'success'})
-        
+
+        # Verify response contains required fields
+        self.assertEqual(response_data['status'], 'success')
+        self.assertIn('instance_id', response_data)
+        self.assertIn('s3_config', response_data)
+
+        # Verify S3 config structure
+        s3_config = response_data['s3_config']
+        self.assertIn('bucket', s3_config)
+        self.assertIn('region', s3_config)
+        self.assertIn('prefix', s3_config)
+
         # Verify it was created in the database
         new_rustbucket = Rustbucket.objects.get(name='new-rustbucket')
+
+        # Verify instance_id matches
+        self.assertEqual(response_data['instance_id'], new_rustbucket.id)
+
+        # Verify S3 prefix includes instance ID
+        self.assertIn(str(new_rustbucket.id), s3_config['prefix'])
         self.assertEqual(new_rustbucket.operating_system, 'Windows')
         self.assertEqual(new_rustbucket.token, 'test-token-123')
         self.assertEqual(new_rustbucket.cpu_usage, '25%')
