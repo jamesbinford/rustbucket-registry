@@ -120,9 +120,9 @@ variable "domain_name" {
 }
 
 variable "enable_https" {
-  description = "Enable HTTPS with Let's Encrypt"
+  description = "Enable HTTPS with Let's Encrypt (requires domain_name to be set)"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "admin_email" {

@@ -166,8 +166,12 @@ CACHES = {
 # GeoIP configuration for IP geolocation
 GEOIP_PATH = BASE_DIR / 'rustbucketregistry' / 'geoip'
 
-# HTTPS/Security settings (enabled in production when DEBUG=False)
-if not DEBUG:
+# HTTPS/Security settings
+# These are configurable via environment variables to support both HTTP and HTTPS deployments
+# Set ENABLE_HTTPS=true when SSL is configured (e.g., via Let's Encrypt)
+ENABLE_HTTPS = os.getenv('ENABLE_HTTPS', 'false').lower() in ('true', '1', 'yes')
+
+if not DEBUG and ENABLE_HTTPS:
     SECURE_SSL_REDIRECT = True
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SESSION_COOKIE_SECURE = True

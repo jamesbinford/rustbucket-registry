@@ -60,7 +60,17 @@ pip install -r requirements.txt
 # Environment Configuration
 # -----------------------------------------------------------------------------
 
-cat > .env << 'ENVEOF'
+# Get the public IP address for ALLOWED_HOSTS
+PUBLIC_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+echo "Detected public IP: $PUBLIC_IP"
+
+# Build ALLOWED_HOSTS - include domain if provided, always include the public IP
+ALLOWED_HOSTS_VALUE="$PUBLIC_IP,localhost,127.0.0.1"
+%{ if domain_name != "" }
+ALLOWED_HOSTS_VALUE="${domain_name},$ALLOWED_HOSTS_VALUE"
+%{ endif }
+
+cat > .env << ENVEOF
 # Database Configuration
 DB_HOST=${db_host}
 DB_PORT=3306
@@ -71,7 +81,10 @@ DB_PASSWORD=${db_password}
 # Django Configuration
 SECRET_KEY=${django_secret_key}
 DEBUG=False
-ALLOWED_HOSTS=${domain_name},$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)
+ALLOWED_HOSTS=$ALLOWED_HOSTS_VALUE
+
+# HTTPS Configuration - set to true after SSL certificate is configured
+ENABLE_HTTPS=${enable_https}
 
 # AWS S3 Configuration
 AWS_S3_BUCKET_NAME=${s3_bucket_name}
