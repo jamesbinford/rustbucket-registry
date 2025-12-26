@@ -289,6 +289,7 @@
             <a href="{% url 'home' %}">Home</a>
             <a href="{% url 'logsinks' %}">LogSinks</a>
             <a href="{% url 'registration_keys' %}">Registration Keys</a>
+            {% if user.profile.role == 'admin' %}<a href="{% url 'deployments' %}">Deployments</a>{% endif %}
         </div>
 
         <div class="filter-controls">

@@ -52,6 +52,10 @@
             <a href="{% url 'dashboard' %}">Dashboard</a>
             <span style="margin: 0 10px;">|</span>
             <span style="color: #333;">Registration Keys</span>
+            {% if user.profile.role == 'admin' %}
+            <span style="margin: 0 10px;">|</span>
+            <a href="{% url 'deployments' %}">Deployments</a>
+            {% endif %}
         </div>
 
         <div class="page-header">

@@ -20,7 +20,10 @@
         <div style="margin-bottom: 20px;">
             <a href="{% url 'dashboard' %}" style="display: inline-block; padding: 8px 15px; background-color: #4CAF50; color: white; border-radius: 3px; text-decoration: none; margin-right: 10px;">Dashboard</a>
             <a href="{% url 'logsinks' %}" style="display: inline-block; padding: 8px 15px; background-color: #2196F3; color: white; border-radius: 3px; text-decoration: none; margin-right: 10px;">View LogSinks</a>
-            <a href="{% url 'registration_keys' %}" style="display: inline-block; padding: 8px 15px; background-color: #FF9800; color: white; border-radius: 3px; text-decoration: none;">Registration Keys</a>
+            <a href="{% url 'registration_keys' %}" style="display: inline-block; padding: 8px 15px; background-color: #FF9800; color: white; border-radius: 3px; text-decoration: none; margin-right: 10px;">Registration Keys</a>
+            {% if user.profile.role == 'admin' %}
+            <a href="{% url 'deployments' %}" style="display: inline-block; padding: 8px 15px; background-color: #9C27B0; color: white; border-radius: 3px; text-decoration: none;">Deployments</a>
+            {% endif %}
         </div>
 
         <table>
