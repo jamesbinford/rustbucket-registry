@@ -883,3 +883,159 @@ class RegistrationKey(models.Model):
         """Revoke this key so it cannot be used."""
         self.revoked = True
         self.save(update_fields=['revoked'])
+
+
+# =============================================================================
+# EC2 Deployment Models
+# =============================================================================
+
+class Deployment(models.Model):
+    """
+    Tracks EC2 deployments of rustbucket honeypots.
+
+    A deployment creates an EC2 instance with user-data that installs
+    the honeypot software and registers with the registry.
+    """
+    # Unique identifier
+    id = models.CharField(
+        primary_key=True,
+        max_length=20,
+        editable=False,
+        help_text="Unique identifier for the deployment"
+    )
+
+    # Human-readable name
+    name = models.CharField(
+        max_length=255,
+        help_text="Name for this deployment (becomes rustbucket name)"
+    )
+
+    # AWS EC2 configuration
+    instance_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="AWS EC2 instance ID once launched"
+    )
+
+    instance_type = models.CharField(
+        max_length=50,
+        default='t3.micro',
+        help_text="EC2 instance type"
+    )
+
+    region = models.CharField(
+        max_length=50,
+        default='us-east-1',
+        help_text="AWS region for deployment"
+    )
+
+    ami_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="AMI used for deployment"
+    )
+
+    # Network configuration
+    subnet_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="VPC subnet for the instance"
+    )
+
+    security_group_id = models.CharField(
+        max_length=50,
+        null=True,
+        blank=True,
+        help_text="Security group for the instance"
+    )
+
+    public_ip = models.GenericIPAddressField(
+        null=True,
+        blank=True,
+        help_text="Public IP once assigned"
+    )
+
+    # Status tracking
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('launching', 'Launching'),
+        ('running', 'Running'),
+        ('registered', 'Registered'),
+        ('failed', 'Failed'),
+        ('terminated', 'Terminated'),
+    ]
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default='pending',
+        help_text="Current deployment status"
+    )
+
+    status_message = models.TextField(
+        null=True,
+        blank=True,
+        help_text="Additional status details or error message"
+    )
+
+    # Registration key used for this deployment
+    registration_key = models.OneToOneField(
+        'RegistrationKey',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deployment',
+        help_text="Registration key for auto-registration"
+    )
+
+    # Link to registered rustbucket (set after successful registration)
+    rustbucket = models.OneToOneField(
+        'Rustbucket',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deployment',
+        help_text="Rustbucket created from this deployment"
+    )
+
+    # Audit fields
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='deployments',
+        help_text="Admin who initiated deployment"
+    )
+
+    created_at = models.DateTimeField(
+        default=timezone.now,
+        help_text="When deployment was initiated"
+    )
+
+    launched_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When EC2 instance was launched"
+    )
+
+    registered_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When rustbucket registered with registry"
+    )
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Deployment'
+        verbose_name_plural = 'Deployments'
+
+    def __str__(self):
+        return f"Deployment: {self.name} ({self.status})"
+
+    def save(self, *args, **kwargs):
+        if not self.id:
+            self.id = f"DEP{str(uuid.uuid4().int)[:6]}"
+        super().save(*args, **kwargs)

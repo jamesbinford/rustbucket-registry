@@ -9,16 +9,12 @@ from datetime import timedelta
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_GET
 
-from rustbucketregistry.models import RegistrationKey, AuditLog
-from rustbucketregistry.permissions import admin_required
+from rustbucketregistry.models import AuditLog, RegistrationKey
+from rustbucketregistry.permissions import admin_required, api_endpoint
 
 
-@csrf_exempt
-@require_POST
-@admin_required
+@api_endpoint(role='admin', method='POST')
 def create_registration_key(request):
     """Create a new registration key.
 
@@ -80,8 +76,7 @@ def create_registration_key(request):
     }, status=201)
 
 
-@require_GET
-@admin_required
+@api_endpoint(role='admin', method='GET')
 def list_registration_keys(request):
     """List all registration keys with their status.
 
@@ -120,9 +115,7 @@ def list_registration_keys(request):
     })
 
 
-@csrf_exempt
-@require_POST
-@admin_required
+@api_endpoint(role='admin', method='POST')
 def revoke_registration_key(request, key_id):
     """Revoke an unused registration key.
 

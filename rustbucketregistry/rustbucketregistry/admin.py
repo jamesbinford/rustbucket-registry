@@ -7,7 +7,7 @@ from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 from django.contrib.auth.models import User
 from .models import (
     Rustbucket, LogSink, Alert,
-    UserProfile, RustbucketAccess, AuditLog, APIKey
+    UserProfile, RustbucketAccess, AuditLog, APIKey, Deployment
 )
 
 
@@ -298,3 +298,39 @@ class APIKeyAdmin(admin.ModelAdmin):
         updated = queryset.update(is_active=True)
         self.message_user(request, f"Activated {updated} API key(s)", level=messages.SUCCESS)
     activate_keys.short_description = "Activate selected API keys"
+
+
+# =============================================================================
+# Deployment Admin Configuration
+# =============================================================================
+
+@admin.register(Deployment)
+class DeploymentAdmin(admin.ModelAdmin):
+    """Admin view for Deployments"""
+    list_display = ('id', 'name', 'status', 'instance_id', 'instance_type', 'region', 'public_ip', 'created_at')
+    list_filter = ('status', 'region', 'instance_type', 'created_at')
+    search_fields = ('id', 'name', 'instance_id', 'public_ip')
+    readonly_fields = ('id', 'instance_id', 'ami_id', 'public_ip', 'created_at', 'launched_at', 'registered_at')
+    raw_id_fields = ('registration_key', 'rustbucket', 'created_by')
+    date_hierarchy = 'created_at'
+
+    fieldsets = (
+        ('Identification', {
+            'fields': ('id', 'name', 'status', 'status_message')
+        }),
+        ('EC2 Instance', {
+            'fields': ('instance_id', 'instance_type', 'region', 'ami_id', 'public_ip')
+        }),
+        ('Relationships', {
+            'fields': ('registration_key', 'rustbucket', 'created_by'),
+            'classes': ('collapse',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'launched_at', 'registered_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def has_add_permission(self, request):
+        """Prevent manual creation - use the deployment API instead"""
+        return False

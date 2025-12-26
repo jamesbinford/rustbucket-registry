@@ -1,0 +1,260 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Deployments - RustBucket Registry</title>
+    <link rel="stylesheet" href="{% static 'css/base.css' %}">
+    <style>
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .status-pending { background-color: #fff8e1; color: #ef6c00; }
+        .status-launching { background-color: #e3f2fd; color: #1565c0; }
+        .status-running { background-color: #e8f5e9; color: #2e7d32; }
+        .status-registered { background-color: #c8e6c9; color: #1b5e20; }
+        .status-failed { background-color: #ffebee; color: #c62828; }
+        .status-terminated { background-color: #f5f5f5; color: #666; }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f5f5f5;
+            font-weight: bold;
+        }
+        tr:hover {
+            background-color: #f9f9f9;
+        }
+        .instance-id {
+            font-family: monospace;
+            font-size: 12px;
+        }
+        .ip-address {
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="nav-links">
+            <a href="{% url 'home' %}">Home</a>
+            <span style="margin: 0 10px;">|</span>
+            <a href="{% url 'dashboard' %}">Dashboard</a>
+            <span style="margin: 0 10px;">|</span>
+            <a href="{% url 'registration_keys' %}">Registration Keys</a>
+            <span style="margin: 0 10px;">|</span>
+            <span style="color: #333;">Deployments</span>
+        </div>
+
+        <div class="page-header">
+            <h1>Deployments</h1>
+            <button class="btn btn-primary" onclick="openDeployModal()">Deploy New Honeypot</button>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Instance ID</th>
+                    <th>Type</th>
+                    <th>Region</th>
+                    <th>Public IP</th>
+                    <th>Created</th>
+                    <th>Rustbucket</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for dep in deployments %}
+                <tr>
+                    <td><strong>{{ dep.name }}</strong></td>
+                    <td><span class="badge status-{{ dep.status }}">{{ dep.get_status_display }}</span></td>
+                    <td class="instance-id">{{ dep.instance_id|default:"--" }}</td>
+                    <td>{{ dep.instance_type }}</td>
+                    <td>{{ dep.region }}</td>
+                    <td class="ip-address">{{ dep.public_ip|default:"--" }}</td>
+                    <td>{{ dep.created_at|date:"M d, Y H:i" }}</td>
+                    <td>
+                        {% if dep.rustbucket %}
+                            <a href="{% url 'bucket_detail' bucket_id=dep.rustbucket.id %}">{{ dep.rustbucket.name }}</a>
+                        {% else %}
+                            --
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="8" class="empty-state">
+                        No deployments yet. Click "Deploy New Honeypot" to get started.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Deploy Modal -->
+    <div id="deployModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Deploy New Honeypot</h2>
+                <span class="close" onclick="closeDeployModal()">&times;</span>
+            </div>
+            <form id="deployForm" onsubmit="deployHoneypot(event)">
+                <div class="form-group">
+                    <label for="deployName">Honeypot Name *</label>
+                    <input type="text" id="deployName" name="name" required
+                           placeholder="e.g., prod-honeypot-east-1"
+                           pattern="[a-zA-Z0-9\-_]+"
+                           title="Use only letters, numbers, hyphens, and underscores">
+                </div>
+                <div class="form-group">
+                    <label for="instanceType">Instance Type</label>
+                    <select id="instanceType" name="instance_type">
+                        {% for type in allowed_instance_types %}
+                        <option value="{{ type }}" {% if type == default_instance_type %}selected{% endif %}>{{ type }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="region">Region</label>
+                    <select id="region" name="region">
+                        {% for code, name in available_regions %}
+                        <option value="{{ code }}" {% if code == default_region %}selected{% endif %}>{{ name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button type="submit" class="btn btn-primary">Deploy</button>
+                    <button type="button" class="btn" onclick="closeDeployModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Success Modal -->
+    <div id="successModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Deployment Initiated</h2>
+                <span class="close" onclick="closeSuccessModal()">&times;</span>
+            </div>
+            <p>Your honeypot is being deployed. This may take a few minutes.</p>
+            <div style="background-color: #f5f5f5; padding: 15px; border-radius: 4px; margin: 15px 0;">
+                <p><strong>Instance ID:</strong> <span id="successInstanceId" class="instance-id"></span></p>
+                <p><strong>Region:</strong> <span id="successRegion"></span></p>
+                <p><strong>Status:</strong> <span class="badge status-launching">Launching</span></p>
+            </div>
+            <p style="color: #666; font-size: 14px;">
+                The instance will automatically register with the registry once it's ready.
+                Refresh this page to see the updated status.
+            </p>
+            <button class="btn btn-primary" onclick="closeSuccessModal()">OK</button>
+        </div>
+    </div>
+
+    <script>
+        function getCsrfToken() {
+            return '{{ csrf_token }}';
+        }
+
+        function openDeployModal() {
+            document.getElementById('deployModal').style.display = 'block';
+            document.getElementById('deployName').focus();
+        }
+
+        function closeDeployModal() {
+            document.getElementById('deployModal').style.display = 'none';
+            document.getElementById('deployForm').reset();
+        }
+
+        function closeSuccessModal() {
+            document.getElementById('successModal').style.display = 'none';
+            location.reload();
+        }
+
+        async function deployHoneypot(event) {
+            event.preventDefault();
+
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            submitBtn.textContent = 'Deploying...';
+            submitBtn.disabled = true;
+
+            const data = {
+                name: document.getElementById('deployName').value.trim(),
+                instance_type: document.getElementById('instanceType').value,
+                region: document.getElementById('region').value
+            };
+
+            try {
+                const response = await fetch('{% url "create_deployment" %}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    closeDeployModal();
+                    // Show success modal
+                    document.getElementById('successInstanceId').textContent = result.deployment.instance_id;
+                    document.getElementById('successRegion').textContent = result.deployment.region;
+                    document.getElementById('successModal').style.display = 'block';
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                submitBtn.textContent = originalText;
+                submitBtn.disabled = false;
+            }
+        }
+
+        // Modal close handlers
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal')) {
+                event.target.style.display = 'none';
+                if (event.target.id === 'successModal') {
+                    location.reload();
+                }
+            }
+        }
+
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                const deployModal = document.getElementById('deployModal');
+                const successModal = document.getElementById('successModal');
+                if (deployModal.style.display === 'block') {
+                    deployModal.style.display = 'none';
+                }
+                if (successModal.style.display === 'block') {
+                    successModal.style.display = 'none';
+                    location.reload();
+                }
+            }
+        });
+    </script>
+</body>
+</html>

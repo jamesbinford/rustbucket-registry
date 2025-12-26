@@ -190,3 +190,24 @@ DASHBOARD_CACHE_TIMEOUT = int(os.getenv('DASHBOARD_CACHE_TIMEOUT', 60))
 
 # Health check threshold (in minutes) - buckets not seen in this time are unhealthy
 HEALTH_CHECK_THRESHOLD_MINUTES = int(os.getenv('HEALTH_CHECK_THRESHOLD_MINUTES', 15))
+
+# =============================================================================
+# EC2 Deployment Configuration
+# =============================================================================
+
+# Default instance configuration
+EC2_DEFAULT_INSTANCE_TYPE = os.getenv('EC2_DEFAULT_INSTANCE_TYPE', 't3.micro')
+EC2_DEFAULT_REGION = os.getenv('EC2_DEFAULT_REGION', 'us-east-1')
+
+# Network configuration for deployed honeypots
+EC2_VPC_ID = os.getenv('EC2_VPC_ID', '')
+EC2_SUBNET_ID = os.getenv('EC2_SUBNET_ID', '')
+EC2_SECURITY_GROUP_ID = os.getenv('EC2_SECURITY_GROUP_ID', '')
+EC2_KEY_NAME = os.getenv('EC2_KEY_NAME', '')
+EC2_IAM_INSTANCE_PROFILE = os.getenv('EC2_IAM_INSTANCE_PROFILE', '')
+
+# Registry URL for honeypots to call back for registration
+REGISTRY_BASE_URL = os.getenv('REGISTRY_BASE_URL', 'http://localhost:8000')
+
+# Deployment limits (safety controls)
+MAX_CONCURRENT_DEPLOYMENTS = int(os.getenv('MAX_CONCURRENT_DEPLOYMENTS', 10))

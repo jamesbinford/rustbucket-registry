@@ -179,10 +179,22 @@ def register_rustbucket(request):
         if reg_key:
             reg_key.mark_used(rustbucket)
 
+            # Link to deployment if this registration key was created for one
+            if hasattr(reg_key, 'deployment') and reg_key.deployment:
+                deployment = reg_key.deployment
+                deployment.rustbucket = rustbucket
+                deployment.status = 'registered'
+                deployment.registered_at = timezone.now()
+                deployment.public_ip = rustbucket.ip_address
+                deployment.save()
+                logger.info(
+                    f"Linked rustbucket {rustbucket.id} to deployment {deployment.id}"
+                )
+
         # Return response with S3 configuration for log uploads
-        # Note: instance_id is embedded in s3_config.prefix, no need to return separately
         return JsonResponse({
-            'status': "success",
+            'status': 'success',
+            'id': rustbucket.id,
             's3_config': {
                 'bucket': settings.AWS_S3_BUCKET_NAME,
                 'region': settings.AWS_S3_REGION,

@@ -387,9 +387,134 @@ resource "aws_iam_role_policy" "ec2_cloudwatch" {
   })
 }
 
+# Policy for deploying honeypot EC2 instances
+resource "aws_iam_role_policy" "ec2_deploy" {
+  name = "${var.project_name}-ec2-deploy-policy"
+  role = aws_iam_role.ec2.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:RunInstances",
+          "ec2:DescribeInstances",
+          "ec2:DescribeImages",
+          "ec2:CreateTags",
+          "ec2:TerminateInstances"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "iam:PassRole"
+        ]
+        Resource = aws_iam_role.honeypot.arn
+      }
+    ]
+  })
+}
+
 resource "aws_iam_instance_profile" "ec2" {
   name = "${var.project_name}-ec2-profile"
   role = aws_iam_role.ec2.name
+}
+
+# -----------------------------------------------------------------------------
+# Honeypot IAM Role and Security Group
+# -----------------------------------------------------------------------------
+
+resource "aws_iam_role" "honeypot" {
+  name = "${var.project_name}-honeypot-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "honeypot_s3" {
+  name = "${var.project_name}-honeypot-s3-policy"
+  role = aws_iam_role.honeypot.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.logs.arn,
+          "${aws_s3_bucket.logs.arn}/*"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_instance_profile" "honeypot" {
+  name = "${var.project_name}-honeypot-profile"
+  role = aws_iam_role.honeypot.name
+}
+
+# Security group for honeypot instances
+resource "aws_security_group" "honeypot" {
+  name        = "${var.project_name}-honeypot-sg"
+  description = "Security group for RustBucket honeypot instances"
+  vpc_id      = aws_vpc.main.id
+
+  # SSH access for management
+  ingress {
+    description = "SSH"
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Common honeypot ports - HTTP
+  ingress {
+    description = "HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # Common honeypot ports - HTTPS
+  ingress {
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  # All outbound traffic
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "${var.project_name}-honeypot-sg"
+  }
 }
 
 # -----------------------------------------------------------------------------

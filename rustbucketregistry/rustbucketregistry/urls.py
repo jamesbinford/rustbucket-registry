@@ -49,6 +49,12 @@ from rustbucketregistry.views.registration_keys import (
     revoke_registration_key,
     registration_keys_view,
 )
+from rustbucketregistry.views.deployments import (
+    create_deployment,
+    list_deployments,
+    get_deployment,
+    deployments_view,
+)
 
 # Main URL patterns
 urlpatterns = [
@@ -98,4 +104,10 @@ urlpatterns = [
     path('api/registration-keys/', list_registration_keys, name='list_registration_keys'),
     path('api/registration-keys/create/', create_registration_key, name='create_registration_key'),
     path('api/registration-keys/<int:key_id>/revoke/', revoke_registration_key, name='revoke_registration_key'),
+
+    # Deployment Management (Admin only - RBAC applied in views)
+    path('deployments/', deployments_view, name='deployments'),
+    path('api/deployments/', list_deployments, name='list_deployments'),
+    path('api/deployments/create/', create_deployment, name='create_deployment'),
+    path('api/deployments/<str:deployment_id>/', get_deployment, name='get_deployment'),
 ]

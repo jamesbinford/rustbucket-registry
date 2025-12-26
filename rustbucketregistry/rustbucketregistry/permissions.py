@@ -6,6 +6,11 @@ role-based permissions on views and API endpoints.
 
 Decorator Usage Guide:
 
+    @api_endpoint(role='analyst', method='POST')
+        Composite decorator for API endpoints. Combines CSRF exemption,
+        HTTP method restriction, and role-based access control.
+        Preferred for JSON API endpoints.
+
     @admin_required
         Use for views that require admin role (user management, settings).
 
@@ -46,13 +51,93 @@ Helper Functions:
 """
 import functools
 import logging
+
+from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect
-from django.contrib import messages
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
 
-from rustbucketregistry.models import UserProfile, RustbucketAccess, AuditLog
+from rustbucketregistry.models import AuditLog, RustbucketAccess, UserProfile
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Composite API Endpoint Decorators
+# =============================================================================
+
+def api_endpoint(role='analyst', method='POST'):
+    """Composite decorator for API endpoints.
+
+    Combines CSRF exemption (for POST/PUT/DELETE), HTTP method requirement,
+    and role-based access control into a single decorator.
+
+    Args:
+        role: Required role ('admin', 'analyst', or 'viewer')
+        method: HTTP method ('GET', 'POST', 'PUT', 'DELETE')
+
+    Usage:
+        @api_endpoint(role='analyst', method='POST')
+        def create_something(request):
+            ...
+
+        @api_endpoint(role='admin', method='GET')
+        def list_admin_items(request):
+            ...
+    """
+    def decorator(view_func):
+        @functools.wraps(view_func)
+        def wrapper(request, *args, **kwargs):
+            # Role check with proper error handling
+            is_json = request.content_type == 'application/json'
+
+            if not request.user.is_authenticated:
+                if is_json:
+                    return JsonResponse({'error': 'Authentication required'}, status=401)
+                return redirect('login')
+
+            profile = get_user_profile(request.user)
+            if not profile:
+                if is_json:
+                    return JsonResponse({'error': 'User profile not found'}, status=403)
+                return redirect('login')
+
+            # Check role
+            has_permission = False
+            if role == 'admin':
+                has_permission = profile.is_admin()
+            elif role == 'analyst':
+                has_permission = profile.is_analyst()
+            elif role == 'viewer':
+                has_permission = profile.is_viewer()
+
+            if not has_permission:
+                error_msg = f'{role.title()} access required'
+                AuditLog.log(
+                    user=request.user,
+                    action='view',
+                    details={'error': error_msg, 'path': request.path},
+                    request=request,
+                    success=False
+                )
+                if is_json:
+                    return JsonResponse({'error': error_msg}, status=403)
+                messages.error(request, error_msg)
+                return redirect('home')
+
+            return view_func(request, *args, **kwargs)
+
+        # Apply method restriction
+        if method.upper() == 'GET':
+            wrapper = require_GET(wrapper)
+        elif method.upper() == 'POST':
+            wrapper = csrf_exempt(require_POST(wrapper))
+        elif method.upper() in ('PUT', 'DELETE', 'PATCH'):
+            wrapper = csrf_exempt(wrapper)
+
+        return wrapper
+    return decorator
 
 
 def get_user_profile(user):

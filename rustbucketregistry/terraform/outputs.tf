@@ -97,6 +97,16 @@ output "rds_security_group_id" {
   value       = aws_security_group.rds.id
 }
 
+output "honeypot_security_group_id" {
+  description = "ID of the honeypot security group"
+  value       = aws_security_group.honeypot.id
+}
+
+output "honeypot_instance_profile_name" {
+  description = "Name of the honeypot IAM instance profile"
+  value       = aws_iam_instance_profile.honeypot.name
+}
+
 # -----------------------------------------------------------------------------
 # SSH Connection
 # -----------------------------------------------------------------------------

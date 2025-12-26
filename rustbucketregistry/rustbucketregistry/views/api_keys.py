@@ -4,17 +4,15 @@ This module provides API endpoints for creating, listing, rotating,
 and revoking API keys.
 """
 import json
+
 from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_POST, require_GET
 from django.utils import timezone
 
-from rustbucketregistry.models import Rustbucket, APIKey, AuditLog
-from rustbucketregistry.permissions import analyst_required
+from rustbucketregistry.models import APIKey, AuditLog, Rustbucket
+from rustbucketregistry.permissions import api_endpoint
 
 
-@analyst_required
-@require_GET
+@api_endpoint(role='analyst', method='GET')
 def list_api_keys(request, rustbucket_id=None):
     """List API keys, optionally filtered by rustbucket.
 
@@ -49,9 +47,7 @@ def list_api_keys(request, rustbucket_id=None):
     return JsonResponse({'success': True, 'api_keys': keys})
 
 
-@csrf_exempt
-@analyst_required
-@require_POST
+@api_endpoint(role='analyst', method='POST')
 def create_api_key(request, rustbucket_id):
     """Create a new API key for a rustbucket.
 
@@ -123,9 +119,7 @@ def create_api_key(request, rustbucket_id):
         return JsonResponse({'error': 'Invalid JSON payload'}, status=400)
 
 
-@csrf_exempt
-@analyst_required
-@require_POST
+@api_endpoint(role='analyst', method='POST')
 def revoke_api_key(request, api_key_id):
     """Revoke an API key.
 
@@ -155,9 +149,7 @@ def revoke_api_key(request, api_key_id):
     })
 
 
-@csrf_exempt
-@analyst_required
-@require_POST
+@api_endpoint(role='analyst', method='POST')
 def rotate_api_key(request, api_key_id):
     """Rotate (regenerate) an API key.
 
