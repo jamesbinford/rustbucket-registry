@@ -72,24 +72,41 @@ def get_latest_ubuntu_ami(region=None):
         raise
 
 
-def generate_user_data(deployment_name, registration_key, registry_url):
+def generate_user_data(deployment_name, registration_key, registry_url,
+                       docker_image, openai_api_key='', anthropic_api_key='',
+                       google_api_key=''):
     """
     Generate user-data script for honeypot bootstrap.
 
     The script will:
     1. Update the system
-    2. Install dependencies
-    3. Get the instance's public IP
-    4. Register with the registry using the provided key
+    2. Install Docker
+    3. Pull and run the RustBucket honeypot container
+    4. The container will auto-register with the registry
 
     Args:
         deployment_name: Name for the honeypot
         registration_key: Registration key for auto-registration
         registry_url: Base URL of the registry
+        docker_image: Docker image for RustBucket (e.g., jamesbinford/rustbucket:latest)
+        openai_api_key: OpenAI API key for LLM-powered responses
+        anthropic_api_key: Anthropic API key for Claude
+        google_api_key: Google API key for Gemini
 
     Returns:
         str: Bash script for EC2 user-data
     """
+    # Build LLM environment variables - only include non-empty keys
+    llm_env_vars = []
+    if openai_api_key:
+        llm_env_vars.append(f'-e OPENAI_API_KEY="{openai_api_key}"')
+    if anthropic_api_key:
+        llm_env_vars.append(f'-e ANTHROPIC_API_KEY="{anthropic_api_key}"')
+    if google_api_key:
+        llm_env_vars.append(f'-e GOOGLE_API_KEY="{google_api_key}"')
+
+    llm_env_str = ' \\\n    '.join(llm_env_vars) if llm_env_vars else ''
+
     return f'''#!/bin/bash
 set -e
 
@@ -104,15 +121,32 @@ echo "Updating system packages..."
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 
-# Install dependencies
-echo "Installing dependencies..."
+# Install Docker
+echo "Installing Docker..."
 DEBIAN_FRONTEND=noninteractive apt-get install -y \\
-    python3 \\
-    python3-pip \\
-    python3-venv \\
+    ca-certificates \\
     curl \\
-    jq \\
-    net-tools
+    gnupg \\
+    jq
+
+# Add Docker's official GPG key
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+# Add Docker repository
+echo \\
+  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \\
+  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \\
+  tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+# Install Docker packages
+apt-get update
+DEBIAN_FRONTEND=noninteractive apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+
+# Start and enable Docker
+systemctl start docker
+systemctl enable docker
 
 # Create rustbucket directory
 mkdir -p /opt/rustbucket
@@ -132,30 +166,57 @@ echo "Instance ID: $INSTANCE_ID"
 
 # Wait for network to be fully ready
 echo "Waiting for network stability..."
+sleep 10
+
+# Pull RustBucket Docker image
+echo "Pulling RustBucket Docker image..."
+docker pull {docker_image}
+
+# Run RustBucket container
+# The container will auto-register with the registry using RUSTBUCKET_REGISTRY_URL
+echo "Starting RustBucket honeypot container..."
+docker run -d \\
+    --name rustbucket \\
+    --restart unless-stopped \\
+    -p 22:2222 \\
+    -p 21:2121 \\
+    -p 25:2525 \\
+    -p 80:8080 \\
+    -v /opt/rustbucket/logs:/app/logs \\
+    -v /opt/rustbucket/data:/app/data \\
+    {llm_env_str} \\
+    -e RUSTBUCKET_REGISTRY_URL="{registry_url}/api/register/" \\
+    -e RUSTBUCKET_API_KEY="{registration_key}" \\
+    -e SSH_PORT=2222 \\
+    -e FTP_PORT=2121 \\
+    -e SMTP_PORT=2525 \\
+    -e HTTP_PORT=8080 \\
+    {docker_image}
+
+# Wait for container to start and register
+echo "Waiting for RustBucket to start..."
 sleep 15
 
-# Register with registry
-echo "Registering with RustBucket Registry..."
-RESPONSE=$(curl -s -X POST "{registry_url}/api/register/" \\
-    -H "Content-Type: application/json" \\
-    -d '{{
-        "name": "{deployment_name}",
-        "ip_address": "'"$PUBLIC_IP"'",
-        "operating_system": "Ubuntu 22.04 LTS",
-        "registration_key": "{registration_key}"
-    }}')
-
-echo "Registration response: $RESPONSE"
-
-# Check if registration was successful
-if echo "$RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
-    BUCKET_ID=$(echo "$RESPONSE" | jq -r '.id')
-    echo "Successfully registered as rustbucket: $BUCKET_ID"
-    echo "$BUCKET_ID" > /opt/rustbucket/bucket_id
+# Check container status
+if docker ps | grep -q rustbucket; then
+    echo "RustBucket container is running"
+    docker logs rustbucket 2>&1 | tail -20
 else
-    echo "Registration failed!"
-    echo "$RESPONSE" > /opt/rustbucket/registration_error.log
+    echo "ERROR: RustBucket container failed to start"
+    docker logs rustbucket 2>&1
 fi
+
+# Save deployment info
+cat > /opt/rustbucket/deployment_info.json << EOF
+{{
+    "deployment_name": "{deployment_name}",
+    "instance_id": "$INSTANCE_ID",
+    "public_ip": "$PUBLIC_IP",
+    "docker_image": "{docker_image}",
+    "registry_url": "{registry_url}",
+    "deployed_at": "$(date -Iseconds)"
+}}
+EOF
 
 echo "=========================================="
 echo "Rustbucket setup complete at $(date)"
@@ -195,7 +256,11 @@ def launch_instance(deployment):
     user_data = generate_user_data(
         deployment_name=deployment.name,
         registration_key=deployment.registration_key.key,
-        registry_url=settings.REGISTRY_BASE_URL
+        registry_url=settings.REGISTRY_BASE_URL,
+        docker_image=settings.RUSTBUCKET_DOCKER_IMAGE,
+        openai_api_key=settings.RUSTBUCKET_OPENAI_API_KEY,
+        anthropic_api_key=settings.RUSTBUCKET_ANTHROPIC_API_KEY,
+        google_api_key=settings.RUSTBUCKET_GOOGLE_API_KEY,
     )
 
     # Build launch parameters

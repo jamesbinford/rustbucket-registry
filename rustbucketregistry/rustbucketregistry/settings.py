@@ -211,3 +211,13 @@ REGISTRY_BASE_URL = os.getenv('REGISTRY_BASE_URL', 'http://localhost:8000')
 
 # Deployment limits (safety controls)
 MAX_CONCURRENT_DEPLOYMENTS = int(os.getenv('MAX_CONCURRENT_DEPLOYMENTS', 10))
+
+# RustBucket honeypot configuration
+# LLM API keys - RustBucket supports OpenAI, Claude, Gemini, and Ollama
+# Set the appropriate key for your chosen LLM provider
+RUSTBUCKET_OPENAI_API_KEY = os.getenv('RUSTBUCKET_OPENAI_API_KEY', '')
+RUSTBUCKET_ANTHROPIC_API_KEY = os.getenv('RUSTBUCKET_ANTHROPIC_API_KEY', '')
+RUSTBUCKET_GOOGLE_API_KEY = os.getenv('RUSTBUCKET_GOOGLE_API_KEY', '')
+
+# Docker image for RustBucket honeypot
+RUSTBUCKET_DOCKER_IMAGE = os.getenv('RUSTBUCKET_DOCKER_IMAGE', 'jamesbinford/rustbucket:latest')
