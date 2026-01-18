@@ -37,6 +37,7 @@ def start():
         pull_rustbucket_updates,
         extract_logs_from_rustbuckets,
         health_check_rustbuckets,
+        update_deployment_statuses,
     )
 
     # Schedule tasks using intervals from settings (configurable via env vars)
@@ -63,6 +64,15 @@ def start():
         trigger=IntervalTrigger(minutes=settings.SCHEDULER_HEALTH_CHECK_INTERVAL),
         id='health_check',
         name='Health Check Rustbuckets',
+        replace_existing=True,
+        max_instances=1,
+    )
+
+    scheduler.add_job(
+        update_deployment_statuses,
+        trigger=IntervalTrigger(minutes=settings.SCHEDULER_DEPLOYMENT_STATUS_INTERVAL),
+        id='update_deployment_statuses',
+        name='Update Deployment Statuses',
         replace_existing=True,
         max_instances=1,
     )

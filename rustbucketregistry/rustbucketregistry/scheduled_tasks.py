@@ -121,3 +121,101 @@ def health_check_rustbuckets():
 
     except Exception as e:
         logger.error(f"Error checking rustbucket health: {str(e)}", exc_info=True)
+
+
+def update_deployment_statuses():
+    """
+    Update the status of active deployments by polling AWS EC2.
+
+    This task checks deployments that are in 'launching' or 'running' status
+    and updates their state based on the actual EC2 instance status.
+
+    State transitions:
+    - launching -> running (when EC2 reports 'running')
+    - launching -> failed (when EC2 reports 'terminated' or 'shutting-down')
+    - running -> failed (when EC2 reports 'terminated' or 'shutting-down')
+    """
+    try:
+        from rustbucketregistry.models import Deployment
+        from rustbucketregistry.aws.ec2 import get_instance_status
+
+        logger.info("Starting deployment status update")
+
+        # Get deployments that need status checks
+        deployments = Deployment.objects.filter(
+            status__in=['launching', 'running'],
+            instance_id__isnull=False
+        ).exclude(instance_id='')
+
+        updated_count = 0
+        failed_count = 0
+
+        for deployment in deployments:
+            try:
+                status_info = get_instance_status(
+                    deployment.instance_id,
+                    deployment.region
+                )
+
+                if status_info is None:
+                    # Instance not found - mark as failed
+                    deployment.status = 'failed'
+                    deployment.status_message = 'EC2 instance not found'
+                    deployment.save()
+                    failed_count += 1
+                    logger.warning(
+                        f"Deployment {deployment.id}: instance {deployment.instance_id} not found"
+                    )
+                    continue
+
+                ec2_state = status_info['state']
+                public_ip = status_info.get('public_ip')
+
+                # Update public IP if available
+                if public_ip and str(deployment.public_ip) != public_ip:
+                    deployment.public_ip = public_ip
+
+                # Handle state transitions
+                if ec2_state == 'running':
+                    if deployment.status == 'launching':
+                        deployment.status = 'running'
+                        deployment.status_message = 'EC2 instance is running'
+                        updated_count += 1
+                        logger.info(
+                            f"Deployment {deployment.id}: launching -> running"
+                        )
+
+                elif ec2_state in ('terminated', 'shutting-down'):
+                    deployment.status = 'failed'
+                    deployment.status_message = f'EC2 instance {ec2_state}'
+                    failed_count += 1
+                    logger.warning(
+                        f"Deployment {deployment.id}: {deployment.status} -> failed ({ec2_state})"
+                    )
+
+                elif ec2_state == 'stopped':
+                    deployment.status_message = 'EC2 instance stopped'
+                    logger.info(f"Deployment {deployment.id}: instance stopped")
+
+                deployment.save()
+
+            except Exception as e:
+                logger.error(
+                    f"Error updating deployment {deployment.id}: {str(e)}",
+                    exc_info=True
+                )
+                failed_count += 1
+
+        logger.info(
+            f"Deployment status update completed: "
+            f"{updated_count} updated, {failed_count} failed"
+        )
+
+        return {
+            'checked': deployments.count(),
+            'updated': updated_count,
+            'failed': failed_count
+        }
+
+    except Exception as e:
+        logger.error(f"Error updating deployment statuses: {str(e)}", exc_info=True)

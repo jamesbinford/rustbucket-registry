@@ -8,6 +8,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from rustbucketregistry.models import Deployment, RegistrationKey, UserProfile
+from rustbucketregistry.scheduled_tasks import update_deployment_statuses
 from rustbucketregistry.tests.fixtures import create_test_user
 
 
@@ -204,3 +205,178 @@ class DeploymentListTest(TestCase):
         statuses = [d['status'] for d in data['deployments']]
         self.assertIn('running', statuses)
         self.assertIn('terminated', statuses)
+
+
+class UpdateDeploymentStatusesTest(TestCase):
+    """Tests for the deployment status update scheduled task."""
+
+    def setUp(self):
+        """Set up test data."""
+        self.admin_user = create_test_user(username='admin', is_admin=True)
+
+        self.reg_key = RegistrationKey.objects.create(
+            name='Test Key',
+            created_by=self.admin_user,
+            expires_at=timezone.now() + timedelta(hours=1)
+        )
+
+    def _create_deployment(self, status='launching', instance_id='i-1234567890abcdef0'):
+        """Helper to create a deployment with a unique registration key."""
+        reg_key = RegistrationKey.objects.create(
+            name=f'Key for {status}',
+            created_by=self.admin_user,
+            expires_at=timezone.now() + timedelta(hours=1)
+        )
+        return Deployment.objects.create(
+            name=f'test-{status}',
+            instance_type='t3.micro',
+            region='us-east-1',
+            registration_key=reg_key,
+            created_by=self.admin_user,
+            status=status,
+            instance_id=instance_id
+        )
+
+    def test_launching_to_running(self):
+        """Test that launching deployment transitions to running when EC2 is running."""
+        deployment = self._create_deployment(status='launching')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            mock_status.return_value = {
+                'state': 'running',
+                'public_ip': '54.123.45.67'
+            }
+
+            result = update_deployment_statuses()
+
+            deployment.refresh_from_db()
+            self.assertEqual(deployment.status, 'running')
+            self.assertEqual(str(deployment.public_ip), '54.123.45.67')
+            self.assertEqual(result['updated'], 1)
+
+    def test_launching_to_failed_on_terminated(self):
+        """Test that launching deployment fails when EC2 is terminated."""
+        deployment = self._create_deployment(status='launching')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            mock_status.return_value = {
+                'state': 'terminated',
+                'public_ip': None
+            }
+
+            result = update_deployment_statuses()
+
+            deployment.refresh_from_db()
+            self.assertEqual(deployment.status, 'failed')
+            self.assertIn('terminated', deployment.status_message)
+            self.assertEqual(result['failed'], 1)
+
+    def test_instance_not_found(self):
+        """Test that deployment fails when EC2 instance is not found."""
+        deployment = self._create_deployment(status='running')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            mock_status.return_value = None
+
+            result = update_deployment_statuses()
+
+            deployment.refresh_from_db()
+            self.assertEqual(deployment.status, 'failed')
+            self.assertIn('not found', deployment.status_message)
+
+    def test_skips_terminated_deployments(self):
+        """Test that terminated deployments are not checked."""
+        deployment = self._create_deployment(status='terminated')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            result = update_deployment_statuses()
+
+            # Should not call EC2 API for terminated deployments
+            mock_status.assert_not_called()
+            self.assertEqual(result['checked'], 0)
+
+    def test_skips_registered_deployments(self):
+        """Test that registered deployments are not checked."""
+        deployment = self._create_deployment(status='registered')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            result = update_deployment_statuses()
+
+            mock_status.assert_not_called()
+            self.assertEqual(result['checked'], 0)
+
+    def test_skips_deployments_without_instance_id(self):
+        """Test that deployments without instance_id are skipped."""
+        deployment = self._create_deployment(status='launching', instance_id=None)
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            result = update_deployment_statuses()
+
+            mock_status.assert_not_called()
+            self.assertEqual(result['checked'], 0)
+
+    def test_updates_public_ip(self):
+        """Test that public IP is updated when available."""
+        deployment = self._create_deployment(status='running')
+        deployment.public_ip = '10.0.0.1'
+        deployment.save()
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            mock_status.return_value = {
+                'state': 'running',
+                'public_ip': '54.200.100.50'
+            }
+
+            update_deployment_statuses()
+
+            deployment.refresh_from_db()
+            self.assertEqual(str(deployment.public_ip), '54.200.100.50')
+
+    def test_handles_ec2_api_error(self):
+        """Test that EC2 API errors are handled gracefully."""
+        deployment = self._create_deployment(status='launching')
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            mock_status.side_effect = Exception('AWS API Error')
+
+            result = update_deployment_statuses()
+
+            # Deployment status should not change on error
+            deployment.refresh_from_db()
+            self.assertEqual(deployment.status, 'launching')
+            self.assertEqual(result['failed'], 1)
+
+    def test_multiple_deployments(self):
+        """Test updating multiple deployments in one run."""
+        dep1 = self._create_deployment(status='launching')
+        dep1.instance_id = 'i-111111111'
+        dep1.save()
+
+        dep2 = self._create_deployment(status='launching')
+        dep2.instance_id = 'i-222222222'
+        dep2.save()
+
+        dep3 = self._create_deployment(status='running')
+        dep3.instance_id = 'i-333333333'
+        dep3.save()
+
+        with patch('rustbucketregistry.aws.ec2.get_instance_status') as mock_status:
+            def mock_response(instance_id, region):
+                if instance_id == 'i-111111111':
+                    return {'state': 'running', 'public_ip': '1.1.1.1'}
+                elif instance_id == 'i-222222222':
+                    return {'state': 'pending', 'public_ip': None}
+                else:
+                    return {'state': 'running', 'public_ip': '3.3.3.3'}
+
+            mock_status.side_effect = mock_response
+
+            result = update_deployment_statuses()
+
+            self.assertEqual(result['checked'], 3)
+            self.assertEqual(result['updated'], 1)  # Only dep1 transitions
+
+            dep1.refresh_from_db()
+            dep2.refresh_from_db()
+            self.assertEqual(dep1.status, 'running')
+            self.assertEqual(dep2.status, 'launching')  # Still launching (pending)

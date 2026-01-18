@@ -20,7 +20,7 @@ class Command(BaseCommand):
             'task',
             type=str,
             nargs='?',
-            help='Task to run: pull_updates, extract_logs, or health_check',
+            help='Task to run: pull_updates, extract_logs, health_check, or deployment_status',
         )
         parser.add_argument(
             '--list',
@@ -36,6 +36,7 @@ class Command(BaseCommand):
             'pull_updates': scheduled_tasks.pull_rustbucket_updates,
             'extract_logs': scheduled_tasks.extract_logs_from_rustbuckets,
             'health_check': scheduled_tasks.health_check_rustbuckets,
+            'deployment_status': scheduled_tasks.update_deployment_statuses,
         }
 
         if options['list']:
