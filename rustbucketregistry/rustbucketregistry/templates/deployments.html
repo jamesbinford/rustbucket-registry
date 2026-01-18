@@ -48,6 +48,25 @@
         .ip-address {
             font-family: monospace;
         }
+        .btn-danger {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .btn-danger:hover {
+            background-color: #c82333;
+        }
+        .btn-danger:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .actions-cell {
+            white-space: nowrap;
+        }
     </style>
 </head>
 <body>
@@ -78,6 +97,7 @@
                     <th>Public IP</th>
                     <th>Created</th>
                     <th>Rustbucket</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -97,10 +117,17 @@
                             --
                         {% endif %}
                     </td>
+                    <td class="actions-cell">
+                        {% if dep.status != 'terminated' %}
+                            <button class="btn-danger" onclick="confirmTerminate('{{ dep.id }}', '{{ dep.name }}', '{{ dep.instance_id|default:"" }}')">Terminate</button>
+                        {% else %}
+                            <span style="color: #999;">--</span>
+                        {% endif %}
+                    </td>
                 </tr>
                 {% empty %}
                 <tr>
-                    <td colspan="8" class="empty-state">
+                    <td colspan="9" class="empty-state">
                         No deployments yet. Click "Deploy New Honeypot" to get started.
                     </td>
                 </tr>
@@ -169,6 +196,30 @@
         </div>
     </div>
 
+    <!-- Terminate Confirmation Modal -->
+    <div id="terminateModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Confirm Termination</h2>
+                <span class="close" onclick="closeTerminateModal()">&times;</span>
+            </div>
+            <p>Are you sure you want to terminate the following deployment?</p>
+            <div style="background-color: #ffebee; padding: 15px; border-radius: 4px; margin: 15px 0; border: 1px solid #ffcdd2;">
+                <p><strong>Name:</strong> <span id="terminateName"></span></p>
+                <p><strong>Instance ID:</strong> <span id="terminateInstanceId" class="instance-id"></span></p>
+            </div>
+            <p style="color: #c62828; font-size: 14px;">
+                This action will terminate the EC2 instance. The rustbucket record (if any) will remain in the database.
+                This action cannot be undone.
+            </p>
+            <input type="hidden" id="terminateDeploymentId">
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn-danger" id="terminateConfirmBtn" onclick="executeTerminate()">Terminate</button>
+                <button class="btn" onclick="closeTerminateModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         function getCsrfToken() {
             return '{{ csrf_token }}';
@@ -187,6 +238,50 @@
         function closeSuccessModal() {
             document.getElementById('successModal').style.display = 'none';
             location.reload();
+        }
+
+        function confirmTerminate(deploymentId, name, instanceId) {
+            document.getElementById('terminateDeploymentId').value = deploymentId;
+            document.getElementById('terminateName').textContent = name;
+            document.getElementById('terminateInstanceId').textContent = instanceId || '(no instance)';
+            document.getElementById('terminateModal').style.display = 'block';
+        }
+
+        function closeTerminateModal() {
+            document.getElementById('terminateModal').style.display = 'none';
+        }
+
+        async function executeTerminate() {
+            const deploymentId = document.getElementById('terminateDeploymentId').value;
+            const confirmBtn = document.getElementById('terminateConfirmBtn');
+            const originalText = confirmBtn.textContent;
+            confirmBtn.textContent = 'Terminating...';
+            confirmBtn.disabled = true;
+
+            try {
+                const response = await fetch(`/api/deployments/${deploymentId}/terminate/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'success') {
+                    closeTerminateModal();
+                    alert('Deployment terminated successfully.');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            } finally {
+                confirmBtn.textContent = originalText;
+                confirmBtn.disabled = false;
+            }
         }
 
         async function deployHoneypot(event) {
@@ -246,12 +341,16 @@
             if (event.key === 'Escape') {
                 const deployModal = document.getElementById('deployModal');
                 const successModal = document.getElementById('successModal');
+                const terminateModal = document.getElementById('terminateModal');
                 if (deployModal.style.display === 'block') {
                     deployModal.style.display = 'none';
                 }
                 if (successModal.style.display === 'block') {
                     successModal.style.display = 'none';
                     location.reload();
+                }
+                if (terminateModal.style.display === 'block') {
+                    terminateModal.style.display = 'none';
                 }
             }
         });

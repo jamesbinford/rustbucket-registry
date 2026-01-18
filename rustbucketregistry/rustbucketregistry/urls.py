@@ -53,6 +53,7 @@ from rustbucketregistry.views.deployments import (
     create_deployment,
     list_deployments,
     get_deployment,
+    terminate_deployment,
     deployments_view,
 )
 
@@ -110,4 +111,5 @@ urlpatterns = [
     path('api/deployments/', list_deployments, name='list_deployments'),
     path('api/deployments/create/', create_deployment, name='create_deployment'),
     path('api/deployments/<str:deployment_id>/', get_deployment, name='get_deployment'),
+    path('api/deployments/<str:deployment_id>/terminate/', terminate_deployment, name='terminate_deployment'),
 ]

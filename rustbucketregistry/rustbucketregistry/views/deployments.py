@@ -17,6 +17,7 @@ from rustbucketregistry.aws.ec2 import (
     ALLOWED_INSTANCE_TYPES,
     AVAILABLE_REGIONS,
     launch_instance,
+    terminate_instance,
 )
 from rustbucketregistry.models import AuditLog, Deployment, RegistrationKey
 from rustbucketregistry.permissions import admin_required, api_endpoint
@@ -232,3 +233,106 @@ def deployments_view(request):
         'default_region': settings.EC2_DEFAULT_REGION,
         'default_instance_type': settings.EC2_DEFAULT_INSTANCE_TYPE,
     })
+
+
+@api_endpoint(role='admin', method='POST')
+def terminate_deployment(request, deployment_id):
+    """
+    Terminate a deployment's EC2 instance.
+
+    This will terminate the EC2 instance and mark the deployment as terminated.
+    The associated rustbucket record (if any) will remain in the database.
+
+    Args:
+        deployment_id: The deployment ID to terminate
+
+    Returns:
+        JsonResponse with termination status
+    """
+    try:
+        deployment = Deployment.objects.select_related('rustbucket').get(id=deployment_id)
+    except Deployment.DoesNotExist:
+        return JsonResponse({'error': 'Deployment not found'}, status=404)
+
+    # Check if deployment can be terminated
+    if deployment.status == 'terminated':
+        return JsonResponse({'error': 'Deployment is already terminated'}, status=400)
+
+    if deployment.status == 'pending':
+        # No instance launched yet, just mark as terminated
+        deployment.status = 'terminated'
+        deployment.status_message = 'Terminated before launch'
+        deployment.save()
+
+        AuditLog.log(
+            user=request.user,
+            action='terminate',
+            resource_type='deployment',
+            resource_id=deployment.id,
+            details={'status': 'terminated_before_launch'},
+            request=request
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'message': 'Deployment terminated (no instance was launched)',
+            'deployment': {
+                'id': deployment.id,
+                'name': deployment.name,
+                'status': deployment.status,
+            }
+        })
+
+    # For deployments with an EC2 instance
+    if not deployment.instance_id:
+        return JsonResponse({
+            'error': 'Deployment has no associated EC2 instance'
+        }, status=400)
+
+    try:
+        terminate_instance(deployment.instance_id, deployment.region)
+
+        deployment.status = 'terminated'
+        deployment.status_message = f'Terminated by {request.user.username}'
+        deployment.save()
+
+        AuditLog.log(
+            user=request.user,
+            action='terminate',
+            resource_type='deployment',
+            resource_id=deployment.id,
+            details={
+                'instance_id': deployment.instance_id,
+                'region': deployment.region,
+                'rustbucket_id': deployment.rustbucket.id if deployment.rustbucket else None,
+            },
+            request=request
+        )
+
+        return JsonResponse({
+            'status': 'success',
+            'message': 'EC2 instance termination initiated',
+            'deployment': {
+                'id': deployment.id,
+                'name': deployment.name,
+                'instance_id': deployment.instance_id,
+                'status': deployment.status,
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Failed to terminate deployment {deployment_id}: {e}", exc_info=True)
+
+        AuditLog.log(
+            user=request.user,
+            action='terminate',
+            resource_type='deployment',
+            resource_id=deployment.id,
+            details={'error': str(e)},
+            request=request,
+            success=False
+        )
+
+        return JsonResponse({
+            'error': f'Failed to terminate instance: {str(e)}'
+        }, status=500)
